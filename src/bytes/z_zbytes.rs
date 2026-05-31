@@ -11,6 +11,6 @@ pub fn z_zbytes_to_bytes(z: &ZZBytes) -> Vec<u8> {
 
 /// Construct a native [`ZZBytes`] from a raw byte buffer.
 #[prebindgen]
-pub fn z_zbytes_from_bytes(bytes: Vec<u8>) -> ZZBytes {
-    ZZBytes::from(bytes)
+pub fn z_zbytes_from_bytes(bytes: &[u8]) -> ZZBytes {
+    ZZBytes::from(bytes.to_vec())
 }
