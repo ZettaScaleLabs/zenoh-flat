@@ -3,7 +3,7 @@ use crate::{
     into_native, CongestionControl, ConsolidationMode, Encoding, Error, KeyExpr, Priority, Query,
     QueryTarget, Reliability, Reply, ReplyKeyExpr, Sample, ZBytes, ZConfig, ZEncoding, ZKeyExpr,
     ZPublisher, ZQuerier, ZQuery, ZQueryable, ZReply, ZSample, ZSession, ZSubscriber, ZZBytes,
-    ZenohId,
+    ZZenohId, ZenohId,
 };
 use prebindgen_proc_macro::prebindgen;
 use std::time::Duration;
@@ -387,27 +387,48 @@ pub fn session_declare_querier(
     )
 }
 
-// Zid accessors return the value-class `ZenohId` directly. With the unified
-// newtype projection, value classes ride the same fold-and-wrap machinery as
-// opaque handles: the generated Kotlin surface is `ZenohId` / `List<ZenohId>`,
-// each value erased to its inner `[B` over the wire and wrapped on the Kotlin
-// side, with no raw-bytes hop visible in the FFI surface.
+// Zid accessors come in two tiers, mirroring the rest of the API:
+//
+// * The value-class tier (`session_*zid`, no `z_` prefix) returns the `ZenohId`
+//   data twin / `Vec<ZenohId>`. With the unified newtype projection, value
+//   classes ride the same fold-and-wrap machinery as opaque handles: the
+//   generated Kotlin surface is `ZenohId` / `List<ZenohId>`, each value erased
+//   to its inner `[B` over the wire and wrapped on the Kotlin side, with no
+//   raw-bytes hop visible in the FFI surface. This tier targets the JNI adapter.
+// * The opaque-handle tier (`z_session_*zid`) returns the `ZZenohId` handle
+//   directly (`zenoh::session::ZenohId`), exported by the C layer; callers then
+//   use `z_zenoh_id_to_string` / `z_zenoh_id_to_bytes`.
 #[prebindgen]
-pub fn z_session_zid(session: &ZSession) -> ZenohId {
+pub fn session_zid(session: &ZSession) -> ZenohId {
     ZenohId::from(session.info().zid().wait())
 }
 
 #[prebindgen]
-pub fn z_session_peers_zid(session: &ZSession) -> Vec<ZenohId> {
+pub fn session_peers_zid(session: &ZSession) -> Vec<ZenohId> {
     session.info().peers_zid().wait().map(ZenohId::from).collect()
 }
 
 #[prebindgen]
-pub fn z_session_routers_zid(session: &ZSession) -> Vec<ZenohId> {
+pub fn session_routers_zid(session: &ZSession) -> Vec<ZenohId> {
     session
         .info()
         .routers_zid()
         .wait()
         .map(ZenohId::from)
         .collect()
+}
+
+#[prebindgen]
+pub fn z_session_zid(session: &ZSession) -> ZZenohId {
+    session.info().zid().wait()
+}
+
+#[prebindgen]
+pub fn z_session_peers_zid(session: &ZSession) -> Vec<ZZenohId> {
+    session.info().peers_zid().wait().collect()
+}
+
+#[prebindgen]
+pub fn z_session_routers_zid(session: &ZSession) -> Vec<ZZenohId> {
+    session.info().routers_zid().wait().collect()
 }
