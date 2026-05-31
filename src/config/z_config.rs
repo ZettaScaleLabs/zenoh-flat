@@ -8,6 +8,13 @@ pub fn z_config_default() -> ZConfig {
     ZConfig::default()
 }
 
+/// Clone a configuration handle. Use this before passing a config to a
+/// consuming call (`z_open`) when the caller needs to keep the original.
+#[prebindgen]
+pub fn z_config_clone(c: &ZConfig) -> ZConfig {
+    c.clone()
+}
+
 /// Load a configuration from a file path. The file extension determines
 /// the format (JSON, JSON5, or YAML).
 #[prebindgen]

@@ -9,24 +9,25 @@ use prebindgen_proc_macro::prebindgen;
 use std::time::Duration;
 use zenoh::{query::Selector, Wait};
 
-/// Open a session with the given configuration. The config is cloned, not
-/// consumed, so the caller's handle stays valid (matching legacy behavior).
+/// Open a session with the given configuration. The config is consumed by value
+/// (matching native `zenoh::open`); C callers that need to keep it should
+/// `z_config_clone` first.
 #[prebindgen]
-pub fn z_open(config: &ZConfig) -> Result<ZSession, Error> {
-    zenoh::open(config.clone()).wait().map_err(Error::from)
+pub fn z_open(config: ZConfig) -> Result<ZSession, Error> {
+    zenoh::open(config).wait().map_err(Error::from)
 }
 
 #[prebindgen]
 pub fn z_session_declare_publisher(
     session: &ZSession,
-    key_expr: &ZKeyExpr,
+    key_expr: ZKeyExpr,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
     reliability: Reliability,
 ) -> Result<ZPublisher, Error> {
     session
-        .declare_publisher(key_expr.clone())
+        .declare_publisher(key_expr)
         .congestion_control(congestion_control.into())
         .priority(priority.into())
         .express(express)
@@ -88,13 +89,13 @@ pub fn z_session_delete(
 #[prebindgen]
 pub fn z_session_declare_subscriber(
     session: &ZSession,
-    key_expr: &ZKeyExpr,
+    key_expr: ZKeyExpr,
     callback: impl Fn(ZSample) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<ZSubscriber, Error> {
     let on_close = OnceDrop::new(on_close);
     session
-        .declare_subscriber(key_expr.clone())
+        .declare_subscriber(key_expr)
         .callback(move |sample| {
             let _ = &on_close;
             callback(sample);
@@ -115,7 +116,7 @@ pub fn session_declare_subscriber(
     let ke = into_native(key_expr.into())?;
     z_session_declare_subscriber(
         session,
-        &ke,
+        ke,
         move |zs| callback(Sample::from(&zs)),
         on_close,
     )
@@ -125,7 +126,7 @@ pub fn session_declare_subscriber(
 #[allow(clippy::too_many_arguments)]
 pub fn z_session_declare_querier(
     session: &ZSession,
-    key_expr: &ZKeyExpr,
+    key_expr: ZKeyExpr,
     target: QueryTarget,
     consolidation: ConsolidationMode,
     congestion_control: CongestionControl,
@@ -136,7 +137,7 @@ pub fn z_session_declare_querier(
 ) -> Result<ZQuerier, Error> {
     let consolidation: zenoh::query::ConsolidationMode = consolidation.into();
     session
-        .declare_querier(key_expr.clone())
+        .declare_querier(key_expr)
         .congestion_control(congestion_control.into())
         .consolidation(consolidation)
         .express(express)
@@ -153,14 +154,14 @@ pub fn z_session_declare_querier(
 #[prebindgen]
 pub fn z_session_declare_queryable(
     session: &ZSession,
-    key_expr: &ZKeyExpr,
+    key_expr: ZKeyExpr,
     complete: bool,
     callback: impl Fn(ZQuery) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<ZQueryable, Error> {
     let on_close = OnceDrop::new(on_close);
     session
-        .declare_queryable(key_expr.clone())
+        .declare_queryable(key_expr)
         .complete(complete)
         .callback(move |query| {
             let _ = &on_close;
@@ -183,7 +184,7 @@ pub fn session_declare_queryable(
     let ke = into_native(key_expr.into())?;
     z_session_declare_queryable(
         session,
-        &ke,
+        ke,
         complete,
         move |zq| callback(Query::from(zq)),
         on_close,
@@ -308,7 +309,7 @@ pub fn session_declare_publisher(
     reliability: Reliability,
 ) -> Result<ZPublisher, Error> {
     let ke = into_native(key_expr.into())?;
-    z_session_declare_publisher(session, &ke, congestion_control, priority, express, reliability)
+    z_session_declare_publisher(session, ke, congestion_control, priority, express, reliability)
 }
 
 /// Advanced (ergonomic) twin of [`z_session_put`]. See [`session_declare_publisher`].
@@ -375,7 +376,7 @@ pub fn session_declare_querier(
     let ke = into_native(key_expr.into())?;
     z_session_declare_querier(
         session,
-        &ke,
+        ke,
         target,
         consolidation,
         congestion_control,

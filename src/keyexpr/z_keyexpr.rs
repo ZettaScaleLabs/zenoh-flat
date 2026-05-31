@@ -9,6 +9,14 @@ pub fn z_keyexpr_try_from(s: String) -> Result<ZKeyExpr, Error> {
     Ok(ke)
 }
 
+/// Clone a key-expression handle. Use this before passing a handle to a
+/// consuming call (e.g. `z_session_declare_publisher`) when the caller needs to
+/// keep the original. Cheap (Arc bump for owned key expressions).
+#[prebindgen]
+pub fn z_keyexpr_clone(ke: &ZKeyExpr) -> ZKeyExpr {
+    ke.clone()
+}
+
 #[prebindgen]
 pub fn z_keyexpr_autocanonize(s: String) -> Result<ZKeyExpr, Error> {
     let ke = ZKeyExpr::autocanonize(s)?;
