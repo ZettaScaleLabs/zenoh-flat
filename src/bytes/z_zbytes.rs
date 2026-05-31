@@ -9,8 +9,17 @@ pub fn z_zbytes_to_bytes(z: &ZZBytes) -> Vec<u8> {
     z.to_bytes().into_owned()
 }
 
-/// Construct a native [`ZZBytes`] from a raw byte buffer.
+/// Construct a native [`ZZBytes`] from a borrowed byte slice. Copies the
+/// bytes; this is the C-facing constructor (`const uint8_t* + size`).
 #[prebindgen]
-pub fn z_zbytes_from_bytes(bytes: &[u8]) -> ZZBytes {
+pub fn z_zbytes_from_slice(bytes: &[u8]) -> ZZBytes {
     ZZBytes::from(bytes.to_vec())
+}
+
+/// Construct a native [`ZZBytes`] from an owned byte buffer, taking ownership
+/// without copying. Not exported to the C layer — it exists for completeness
+/// and to accept zenoh-flat's `ZBytes` payload without cloning.
+#[prebindgen]
+pub fn z_zbytes_from_vec(bytes: Vec<u8>) -> ZZBytes {
+    ZZBytes::from(bytes)
 }
