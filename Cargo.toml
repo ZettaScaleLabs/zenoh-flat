@@ -8,10 +8,10 @@ zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git",
 zenoh-ext = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["internal"], default-features = false, optional = true }
 android-logd-logger = "0.4.0"
 tracing = { version = "0.1" , features = ["log"] }
-prebindgen = { path = "../../prebindgen/prebindgen/prebindgen" }
-prebindgen-proc-macro = { path = "../../prebindgen/prebindgen/prebindgen-proc-macro" }
+prebindgen = { path = "../prebindgen/prebindgen" }
+prebindgen-proc-macro = { path = "../prebindgen/prebindgen-proc-macro" }
 json5 = "0.4.1"
 serde_yaml = "0.9.19"
 
 [build-dependencies]
-prebindgen = { path = "../../prebindgen/prebindgen/prebindgen" }
+prebindgen = { path = "../prebindgen/prebindgen" }
