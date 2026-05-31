@@ -1,7 +1,7 @@
 use crate::util::OnceDrop;
 use crate::{
-    into_native, Error, KeyExpr, Reply, Sample, ZLivelinessToken, ZReply, ZSample, ZSession,
-    ZSubscriber,
+    into_native, Error, KeyExpr, Reply, Sample, ZKeyExpr, ZLivelinessToken, ZReply, ZSample,
+    ZSession, ZSubscriber,
 };
 use prebindgen_proc_macro::prebindgen;
 use std::time::Duration;
@@ -12,12 +12,11 @@ use zenoh::Wait;
 #[prebindgen]
 pub fn z_liveliness_declare_token(
     session: &ZSession,
-    key_expr: impl Into<KeyExpr> + Send + 'static,
+    key_expr: &ZKeyExpr,
 ) -> Result<ZLivelinessToken, Error> {
-    let ke = into_native(key_expr.into())?;
     session
         .liveliness()
-        .declare_token(ke)
+        .declare_token(key_expr.clone())
         .wait()
         .map_err(Error::from)
 }
@@ -28,16 +27,15 @@ pub fn z_liveliness_declare_token(
 #[prebindgen]
 pub fn z_liveliness_get(
     session: &ZSession,
-    key_expr: impl Into<KeyExpr> + Send + 'static,
+    key_expr: &ZKeyExpr,
     timeout_ms: i64,
     callback: impl Fn(ZReply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<(), Error> {
-    let ke = into_native(key_expr.into())?;
     let on_close = OnceDrop::new(on_close);
     session
         .liveliness()
-        .get(ke)
+        .get(key_expr.clone())
         .timeout(Duration::from_millis(timeout_ms as u64))
         .callback(move |reply| {
             let _ = &on_close;
@@ -58,9 +56,10 @@ pub fn liveliness_get(
     callback: impl Fn(Reply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<(), Error> {
+    let ke = into_native(key_expr.into())?;
     z_liveliness_get(
         session,
-        key_expr,
+        &ke,
         timeout_ms,
         move |zr| callback(Reply::from(&zr)),
         on_close,
@@ -74,16 +73,15 @@ pub fn liveliness_get(
 #[prebindgen]
 pub fn z_liveliness_declare_subscriber(
     session: &ZSession,
-    key_expr: impl Into<KeyExpr> + Send + 'static,
+    key_expr: &ZKeyExpr,
     history: bool,
     callback: impl Fn(ZSample) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<ZSubscriber, Error> {
-    let ke = into_native(key_expr.into())?;
     let on_close = OnceDrop::new(on_close);
     session
         .liveliness()
-        .declare_subscriber(ke)
+        .declare_subscriber(key_expr.clone())
         .history(history)
         .callback(move |sample| {
             let _ = &on_close;
@@ -104,11 +102,24 @@ pub fn liveliness_declare_subscriber(
     callback: impl Fn(Sample) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<ZSubscriber, Error> {
+    let ke = into_native(key_expr.into())?;
     z_liveliness_declare_subscriber(
         session,
-        key_expr,
+        &ke,
         history,
         move |zs| callback(Sample::from(&zs)),
         on_close,
     )
+}
+
+/// Advanced (ergonomic) twin of [`z_liveliness_declare_token`]: accepts
+/// `impl Into<KeyExpr>` and delegates to the explicit `z_` function. Not
+/// wrapped by the C adapter; targets the JNI adapter.
+#[prebindgen]
+pub fn liveliness_declare_token(
+    session: &ZSession,
+    key_expr: impl Into<KeyExpr> + Send + 'static,
+) -> Result<ZLivelinessToken, Error> {
+    let ke = into_native(key_expr.into())?;
+    z_liveliness_declare_token(session, &ke)
 }

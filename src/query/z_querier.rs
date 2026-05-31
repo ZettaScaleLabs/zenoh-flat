@@ -1,6 +1,6 @@
 use super::reply::Reply;
 use crate::util::OnceDrop;
-use crate::{Encoding, Error, ZBytes, ZEncoding, ZQuerier, ZReply};
+use crate::{Encoding, Error, ZBytes, ZEncoding, ZQuerier, ZReply, ZZBytes};
 use prebindgen_proc_macro::prebindgen;
 use zenoh::Wait;
 
@@ -11,9 +11,9 @@ use zenoh::Wait;
 pub fn z_querier_get(
     querier: &ZQuerier,
     parameters: Option<String>,
-    payload: Option<impl Into<ZBytes> + Send + 'static>,
-    encoding: impl Into<Encoding> + Send + 'static,
-    attachment: Option<impl Into<ZBytes> + Send + 'static>,
+    payload: Option<ZZBytes>,
+    encoding: &ZEncoding,
+    attachment: Option<ZZBytes>,
     callback: impl Fn(ZReply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<(), Error> {
@@ -23,13 +23,10 @@ pub fn z_querier_get(
         builder = builder.parameters(params);
     }
     if let Some(payload) = payload {
-        let payload: ZBytes = payload.into();
-        let encoding: ZEncoding = encoding.into().try_into()?;
-        builder = builder.payload(payload.bytes).encoding(encoding);
+        builder = builder.payload(payload).encoding(encoding.clone());
     }
     if let Some(attachment) = attachment {
-        let attachment: ZBytes = attachment.into();
-        builder = builder.attachment::<Vec<u8>>(attachment.bytes);
+        builder = builder.attachment(attachment);
     }
     builder
         .callback(move |reply| {
@@ -53,11 +50,14 @@ pub fn querier_get(
     callback: impl Fn(Reply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<(), Error> {
+    let payload = payload.map(|p| ZZBytes::from(p.into()));
+    let z_encoding: ZEncoding = encoding.into().try_into()?;
+    let attachment = attachment.map(|a| ZZBytes::from(a.into()));
     z_querier_get(
         querier,
         parameters,
         payload,
-        encoding,
+        &z_encoding,
         attachment,
         move |zr| callback(Reply::from(&zr)),
         on_close,

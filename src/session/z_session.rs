@@ -2,7 +2,8 @@ use crate::util::OnceDrop;
 use crate::{
     into_native, CongestionControl, ConsolidationMode, Encoding, Error, KeyExpr, Priority, Query,
     QueryTarget, Reliability, Reply, ReplyKeyExpr, Sample, ZBytes, ZConfig, ZEncoding, ZKeyExpr,
-    ZPublisher, ZQuerier, ZQuery, ZQueryable, ZReply, ZSample, ZSession, ZSubscriber, ZenohId,
+    ZPublisher, ZQuerier, ZQuery, ZQueryable, ZReply, ZSample, ZSession, ZSubscriber, ZZBytes,
+    ZenohId,
 };
 use prebindgen_proc_macro::prebindgen;
 use std::time::Duration;
@@ -18,15 +19,14 @@ pub fn z_open(config: &ZConfig) -> Result<ZSession, Error> {
 #[prebindgen]
 pub fn z_session_declare_publisher(
     session: &ZSession,
-    key_expr: impl Into<KeyExpr> + Send + 'static,
+    key_expr: &ZKeyExpr,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
     reliability: Reliability,
 ) -> Result<ZPublisher, Error> {
-    let ke = into_native(key_expr.into())?;
     session
-        .declare_publisher(ke)
+        .declare_publisher(key_expr.clone())
         .congestion_control(congestion_control.into())
         .priority(priority.into())
         .express(express)
@@ -36,30 +36,27 @@ pub fn z_session_declare_publisher(
 }
 
 #[prebindgen]
+#[allow(clippy::too_many_arguments)]
 pub fn z_session_put(
     session: &ZSession,
-    key_expr: impl Into<KeyExpr> + Send + 'static,
-    payload: impl Into<ZBytes> + Send + 'static,
-    encoding: impl Into<Encoding> + Send + 'static,
+    key_expr: &ZKeyExpr,
+    payload: ZZBytes,
+    encoding: &ZEncoding,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
-    attachment: Option<impl Into<ZBytes> + Send + 'static>,
+    attachment: Option<ZZBytes>,
     reliability: Reliability,
 ) -> Result<(), Error> {
-    let ke = into_native(key_expr.into())?;
-    let payload: ZBytes = payload.into();
-    let z_encoding: ZEncoding = encoding.into().try_into()?;
     let mut builder = session
-        .put(&ke, payload.bytes)
+        .put(key_expr, payload)
         .congestion_control(congestion_control.into())
-        .encoding(z_encoding)
+        .encoding(encoding.clone())
         .express(express)
         .priority(priority.into())
         .reliability(reliability.into());
     if let Some(att) = attachment {
-        let att: ZBytes = att.into();
-        builder = builder.attachment::<Vec<u8>>(att.bytes);
+        builder = builder.attachment(att);
     }
     builder.wait().map_err(Error::from)
 }
@@ -67,23 +64,21 @@ pub fn z_session_put(
 #[prebindgen]
 pub fn z_session_delete(
     session: &ZSession,
-    key_expr: impl Into<KeyExpr> + Send + 'static,
+    key_expr: &ZKeyExpr,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
-    attachment: Option<impl Into<ZBytes> + Send + 'static>,
+    attachment: Option<ZZBytes>,
     reliability: Reliability,
 ) -> Result<(), Error> {
-    let ke = into_native(key_expr.into())?;
     let mut builder = session
-        .delete(&ke)
+        .delete(key_expr)
         .congestion_control(congestion_control.into())
         .express(express)
         .priority(priority.into())
         .reliability(reliability.into());
     if let Some(att) = attachment {
-        let att: ZBytes = att.into();
-        builder = builder.attachment::<Vec<u8>>(att.bytes);
+        builder = builder.attachment(att);
     }
     builder.wait().map_err(Error::from)
 }
@@ -93,14 +88,13 @@ pub fn z_session_delete(
 #[prebindgen]
 pub fn z_session_declare_subscriber(
     session: &ZSession,
-    key_expr: impl Into<KeyExpr> + Send + 'static,
+    key_expr: &ZKeyExpr,
     callback: impl Fn(ZSample) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<ZSubscriber, Error> {
-    let ke = into_native(key_expr.into())?;
     let on_close = OnceDrop::new(on_close);
     session
-        .declare_subscriber(ke)
+        .declare_subscriber(key_expr.clone())
         .callback(move |sample| {
             let _ = &on_close;
             callback(sample);
@@ -118,18 +112,20 @@ pub fn session_declare_subscriber(
     callback: impl Fn(Sample) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<ZSubscriber, Error> {
+    let ke = into_native(key_expr.into())?;
     z_session_declare_subscriber(
         session,
-        key_expr,
+        &ke,
         move |zs| callback(Sample::from(&zs)),
         on_close,
     )
 }
 
 #[prebindgen]
+#[allow(clippy::too_many_arguments)]
 pub fn z_session_declare_querier(
     session: &ZSession,
-    key_expr: impl Into<KeyExpr> + Send + 'static,
+    key_expr: &ZKeyExpr,
     target: QueryTarget,
     consolidation: ConsolidationMode,
     congestion_control: CongestionControl,
@@ -138,10 +134,9 @@ pub fn z_session_declare_querier(
     timeout_ms: i64,
     accept_replies: ReplyKeyExpr,
 ) -> Result<ZQuerier, Error> {
-    let ke = into_native(key_expr.into())?;
     let consolidation: zenoh::query::ConsolidationMode = consolidation.into();
     session
-        .declare_querier(ke)
+        .declare_querier(key_expr.clone())
         .congestion_control(congestion_control.into())
         .consolidation(consolidation)
         .express(express)
@@ -158,15 +153,14 @@ pub fn z_session_declare_querier(
 #[prebindgen]
 pub fn z_session_declare_queryable(
     session: &ZSession,
-    key_expr: impl Into<KeyExpr> + Send + 'static,
+    key_expr: &ZKeyExpr,
     complete: bool,
     callback: impl Fn(ZQuery) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<ZQueryable, Error> {
-    let ke = into_native(key_expr.into())?;
     let on_close = OnceDrop::new(on_close);
     session
-        .declare_queryable(ke)
+        .declare_queryable(key_expr.clone())
         .complete(complete)
         .callback(move |query| {
             let _ = &on_close;
@@ -186,9 +180,10 @@ pub fn session_declare_queryable(
     callback: impl Fn(Query) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<ZQueryable, Error> {
+    let ke = into_native(key_expr.into())?;
     z_session_declare_queryable(
         session,
-        key_expr,
+        &ke,
         complete,
         move |zq| callback(Query::from(zq)),
         on_close,
@@ -214,7 +209,7 @@ pub fn z_session_undeclare_keyexpr(session: &ZSession, key_expr: ZKeyExpr) -> Re
 #[allow(clippy::too_many_arguments)]
 pub fn z_session_get(
     session: &ZSession,
-    key_expr: impl Into<KeyExpr> + Send + 'static,
+    key_expr: &ZKeyExpr,
     parameters: Option<String>,
     timeout_ms: i64,
     target: QueryTarget,
@@ -223,15 +218,14 @@ pub fn z_session_get(
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
-    payload: Option<impl Into<ZBytes> + Send + 'static>,
-    encoding: impl Into<Encoding> + Send + 'static,
-    attachment: Option<impl Into<ZBytes> + Send + 'static>,
+    payload: Option<ZZBytes>,
+    encoding: &ZEncoding,
+    attachment: Option<ZZBytes>,
     callback: impl Fn(ZReply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<(), Error> {
-    let ke = into_native(key_expr.into())?;
     let consolidation: zenoh::query::ConsolidationMode = consolidation.into();
-    let selector = Selector::owned(&ke, parameters.unwrap_or_default());
+    let selector = Selector::owned(key_expr, parameters.unwrap_or_default());
     let on_close = OnceDrop::new(on_close);
     let mut builder = session
         .get(selector)
@@ -243,13 +237,10 @@ pub fn z_session_get(
         .consolidation(consolidation)
         .accept_replies(accept_replies.into());
     if let Some(payload) = payload {
-        let payload: ZBytes = payload.into();
-        let z_encoding: ZEncoding = encoding.into().try_into()?;
-        builder = builder.payload(payload.bytes).encoding(z_encoding);
+        builder = builder.payload(payload).encoding(encoding.clone());
     }
     if let Some(att) = attachment {
-        let att: ZBytes = att.into();
-        builder = builder.attachment::<Vec<u8>>(att.bytes);
+        builder = builder.attachment(att);
     }
     builder
         .callback(move |reply| {
@@ -281,9 +272,13 @@ pub fn session_get(
     callback: impl Fn(Reply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<(), Error> {
+    let ke = into_native(key_expr.into())?;
+    let payload = payload.map(|p| ZZBytes::from(p.into()));
+    let z_encoding: ZEncoding = encoding.into().try_into()?;
+    let attachment = attachment.map(|a| ZZBytes::from(a.into()));
     z_session_get(
         session,
-        key_expr,
+        &ke,
         parameters,
         timeout_ms,
         target,
@@ -293,10 +288,101 @@ pub fn session_get(
         priority,
         express,
         payload,
-        encoding,
+        &z_encoding,
         attachment,
         move |zr| callback(Reply::from(&zr)),
         on_close,
+    )
+}
+
+/// Advanced (ergonomic) twin of [`z_session_declare_publisher`]: accepts
+/// `impl Into<KeyExpr>` and delegates to the explicit `z_` function. Not
+/// wrapped by the C adapter; targets the JNI adapter.
+#[prebindgen]
+pub fn session_declare_publisher(
+    session: &ZSession,
+    key_expr: impl Into<KeyExpr> + Send + 'static,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+    reliability: Reliability,
+) -> Result<ZPublisher, Error> {
+    let ke = into_native(key_expr.into())?;
+    z_session_declare_publisher(session, &ke, congestion_control, priority, express, reliability)
+}
+
+/// Advanced (ergonomic) twin of [`z_session_put`]. See [`session_declare_publisher`].
+#[prebindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn session_put(
+    session: &ZSession,
+    key_expr: impl Into<KeyExpr> + Send + 'static,
+    payload: impl Into<ZBytes> + Send + 'static,
+    encoding: impl Into<Encoding> + Send + 'static,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+    attachment: Option<impl Into<ZBytes> + Send + 'static>,
+    reliability: Reliability,
+) -> Result<(), Error> {
+    let ke = into_native(key_expr.into())?;
+    let payload: ZZBytes = payload.into().into();
+    let z_encoding: ZEncoding = encoding.into().try_into()?;
+    let attachment = attachment.map(|a| ZZBytes::from(a.into()));
+    z_session_put(
+        session,
+        &ke,
+        payload,
+        &z_encoding,
+        congestion_control,
+        priority,
+        express,
+        attachment,
+        reliability,
+    )
+}
+
+/// Advanced (ergonomic) twin of [`z_session_delete`]. See [`session_declare_publisher`].
+#[prebindgen]
+pub fn session_delete(
+    session: &ZSession,
+    key_expr: impl Into<KeyExpr> + Send + 'static,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+    attachment: Option<impl Into<ZBytes> + Send + 'static>,
+    reliability: Reliability,
+) -> Result<(), Error> {
+    let ke = into_native(key_expr.into())?;
+    let attachment = attachment.map(|a| ZZBytes::from(a.into()));
+    z_session_delete(session, &ke, congestion_control, priority, express, attachment, reliability)
+}
+
+/// Advanced (ergonomic) twin of [`z_session_declare_querier`]. See [`session_declare_publisher`].
+#[prebindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn session_declare_querier(
+    session: &ZSession,
+    key_expr: impl Into<KeyExpr> + Send + 'static,
+    target: QueryTarget,
+    consolidation: ConsolidationMode,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+    timeout_ms: i64,
+    accept_replies: ReplyKeyExpr,
+) -> Result<ZQuerier, Error> {
+    let ke = into_native(key_expr.into())?;
+    z_session_declare_querier(
+        session,
+        &ke,
+        target,
+        consolidation,
+        congestion_control,
+        priority,
+        express,
+        timeout_ms,
+        accept_replies,
     )
 }
 
