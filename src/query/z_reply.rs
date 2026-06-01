@@ -20,22 +20,22 @@ pub fn z_reply_is_ok(r: &ZReply) -> bool {
     r.result().is_ok()
 }
 
-/// The reply's sample on success (owned handle), `None` on error.
+/// The reply's sample on success (borrowed; valid while `r` lives), `None` on error.
 #[prebindgen]
-pub fn z_reply_sample(r: &ZReply) -> Option<ZSample> {
-    r.result().ok().cloned()
+pub fn z_reply_sample(r: &ZReply) -> Option<&ZSample> {
+    r.result().ok()
 }
 
-/// The error payload on failure (owned bytes handle), `None` on success.
+/// The error payload on failure (borrowed bytes), `None` on success.
 #[prebindgen]
-pub fn z_reply_error_payload(r: &ZReply) -> Option<ZZBytes> {
-    r.result().err().map(|e| e.payload().clone())
+pub fn z_reply_error_payload(r: &ZReply) -> Option<&ZZBytes> {
+    r.result().err().map(|e| e.payload())
 }
 
-/// The error encoding on failure (owned handle), `None` on success.
+/// The error encoding on failure (borrowed), `None` on success.
 #[prebindgen]
-pub fn z_reply_error_encoding(r: &ZReply) -> Option<ZEncoding> {
-    r.result().err().map(|e| e.encoding().clone())
+pub fn z_reply_error_encoding(r: &ZReply) -> Option<&ZEncoding> {
+    r.result().err().map(|e| e.encoding())
 }
 
 /// Decode a native [`ZReply`] into the thick [`Reply`] data class in one hop.

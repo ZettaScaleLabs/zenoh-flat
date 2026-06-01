@@ -17,6 +17,12 @@ pub fn z_keyexpr_clone(ke: &ZKeyExpr) -> ZKeyExpr {
     ke.clone()
 }
 
+/// Canonical string form of a key expression (owned, NUL-terminated `char*`).
+#[prebindgen]
+pub fn z_keyexpr_to_string(ke: &ZKeyExpr) -> String {
+    ke.as_str().to_string()
+}
+
 #[prebindgen]
 pub fn z_keyexpr_autocanonize(s: String) -> Result<ZKeyExpr, Error> {
     let ke = ZKeyExpr::autocanonize(s)?;

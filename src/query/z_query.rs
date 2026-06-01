@@ -5,9 +5,33 @@ use zenoh::{
     Wait,
 };
 
+/// Key expression the query targets (borrowed; valid while `q` lives).
+#[prebindgen]
+pub fn z_query_keyexpr(q: &ZQuery) -> &ZKeyExpr {
+    q.key_expr()
+}
+
+/// Query selector parameters as an owned string (empty when none).
+#[prebindgen]
+pub fn z_query_parameters(q: &ZQuery) -> String {
+    q.parameters().as_str().to_string()
+}
+
+/// Query payload (borrowed bytes), or `None` when the query carries none.
+#[prebindgen]
+pub fn z_query_payload(q: &ZQuery) -> Option<&ZZBytes> {
+    q.payload()
+}
+
+/// Encoding of the query payload (borrowed), or `None`.
+#[prebindgen]
+pub fn z_query_encoding(q: &ZQuery) -> Option<&ZEncoding> {
+    q.encoding()
+}
+
 #[prebindgen]
 pub fn z_query_reply_success(
-    query: ZQuery,
+    query: &ZQuery,
     key_expr: &ZKeyExpr,
     payload: ZZBytes,
     encoding: &ZEncoding,
@@ -27,7 +51,7 @@ pub fn z_query_reply_success(
 
 #[prebindgen]
 pub fn z_query_reply_error(
-    query: ZQuery,
+    query: &ZQuery,
     payload: ZZBytes,
     encoding: &ZEncoding,
 ) -> Result<(), Error> {
@@ -40,7 +64,7 @@ pub fn z_query_reply_error(
 
 #[prebindgen]
 pub fn z_query_reply_delete(
-    query: ZQuery,
+    query: &ZQuery,
     key_expr: &ZKeyExpr,
     timestamp_ntp64: Option<i64>,
     attachment: Option<ZZBytes>,
@@ -73,7 +97,7 @@ pub fn query_reply_success(
     let payload: ZZBytes = payload.into().into();
     let z_encoding: ZEncoding = encoding.into().try_into()?;
     let attachment = attachment.map(|a| ZZBytes::from(a.into()));
-    z_query_reply_success(query, &ke, payload, &z_encoding, timestamp_ntp64, attachment, express)
+    z_query_reply_success(&query, &ke, payload, &z_encoding, timestamp_ntp64, attachment, express)
 }
 
 /// Advanced (ergonomic) twin of [`z_query_reply_error`]. See [`query_reply_success`].
@@ -85,7 +109,7 @@ pub fn query_reply_error(
 ) -> Result<(), Error> {
     let payload: ZZBytes = payload.into().into();
     let z_encoding: ZEncoding = encoding.into().try_into()?;
-    z_query_reply_error(query, payload, &z_encoding)
+    z_query_reply_error(&query, payload, &z_encoding)
 }
 
 /// Advanced (ergonomic) twin of [`z_query_reply_delete`]. See [`query_reply_success`].
@@ -99,5 +123,5 @@ pub fn query_reply_delete(
 ) -> Result<(), Error> {
     let ke = into_native(key_expr.into())?;
     let attachment = attachment.map(|a| ZZBytes::from(a.into()));
-    z_query_reply_delete(query, &ke, timestamp_ntp64, attachment, express)
+    z_query_reply_delete(&query, &ke, timestamp_ntp64, attachment, express)
 }

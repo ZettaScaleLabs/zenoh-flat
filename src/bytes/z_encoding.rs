@@ -7,6 +7,13 @@ pub fn z_encoding_id(e: &ZEncoding) -> i32 {
     e.id() as i32
 }
 
+/// Clone an encoding into an owned handle (cheap; materializes an owned
+/// encoding from a borrowed/predefined one).
+#[prebindgen]
+pub fn z_encoding_clone(e: &ZEncoding) -> ZEncoding {
+    e.clone()
+}
+
 /// Optional textual schema attached to the encoding.
 #[prebindgen]
 pub fn z_encoding_schema(e: &ZEncoding) -> Option<String> {
