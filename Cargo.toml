@@ -4,8 +4,7 @@ version = "1.9.0"
 edition = "2024"
 
 [dependencies]
-zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["unstable", "internal"], default-features = false }
-zenoh-ext = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["internal"], default-features = false, optional = true }
+zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git", branch = "main", features = ["internal"], default-features = false }
 android-logd-logger = "0.4.0"
 tracing = { version = "0.1" , features = ["log"] }
 prebindgen = { path = "../prebindgen/prebindgen" }
@@ -15,3 +14,38 @@ serde_yaml = "0.9.19"
 
 [build-dependencies]
 prebindgen = { path = "../prebindgen/prebindgen" }
+
+# Feature flags mirror eclipse-zenoh/zenoh-c (forwarding to the `zenoh` crate),
+# with zenoh-c's exact default set. `unstable` / `shared-memory` are OFF by
+# default, matching zenoh-c; `unstable` gates the `Reliability` QoS surface.
+[features]
+shared-memory = ["zenoh/shared-memory"]
+unstable = ["zenoh/unstable"]
+auth_pubkey = ["zenoh/auth_pubkey"]
+auth_usrpwd = ["zenoh/auth_usrpwd"]
+transport_multilink = ["zenoh/transport_multilink"]
+transport_compression = ["zenoh/transport_compression"]
+transport_quic = ["zenoh/transport_quic"]
+transport_serial = ["zenoh/transport_serial"]
+transport_unixpipe = ["zenoh/transport_unixpipe"]
+transport_tcp = ["zenoh/transport_tcp"]
+transport_tls = ["zenoh/transport_tls"]
+transport_udp = ["zenoh/transport_udp"]
+transport_unixsock-stream = ["zenoh/transport_unixsock-stream"]
+transport_ws = ["zenoh/transport_ws"]
+transport_vsock = ["zenoh/transport_vsock"]
+transport_quic_datagram = ["zenoh/transport_quic_datagram"]
+stats = ["zenoh/stats"]
+default = [
+    "auth_pubkey",
+    "auth_usrpwd",
+    "transport_multilink",
+    "transport_compression",
+    "transport_quic",
+    "transport_tcp",
+    "transport_tls",
+    "transport_udp",
+    "transport_unixsock-stream",
+    "transport_ws",
+    "transport_quic_datagram",
+]

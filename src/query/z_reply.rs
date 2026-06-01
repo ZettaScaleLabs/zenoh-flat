@@ -1,15 +1,23 @@
 use super::reply::Reply;
-use crate::{ZEncoding, ZReply, ZSample, ZZBytes, ZZenohId};
+use crate::{ZEncoding, ZReply, ZSample, ZZBytes};
+#[cfg(feature = "unstable")]
+use crate::ZZenohId;
 use prebindgen_proc_macro::prebindgen;
 
 /// Zenoh id of the node that answered, or `None` when unknown (owned handle).
-#[prebindgen]
+///
+/// Unstable: `Reply::replier_id` is an `#[unstable]` zenoh API.
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
 pub fn z_reply_replier_zid(r: &ZReply) -> Option<ZZenohId> {
     r.replier_id().map(|id| id.zid())
 }
 
 /// Entity id of the replier (0 when the replier is unknown).
-#[prebindgen]
+///
+/// Unstable: `Reply::replier_id` is an `#[unstable]` zenoh API.
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
 pub fn z_reply_replier_eid(r: &ZReply) -> i32 {
     r.replier_id().map(|id| id.eid() as i32).unwrap_or(0)
 }

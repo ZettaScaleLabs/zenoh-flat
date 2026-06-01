@@ -1,6 +1,9 @@
 use prebindgen_proc_macro::prebindgen;
 use crate::ZKeyExpr;
 use crate::Error;
+// `SetIntersectionLevel` mirrors `zenoh::key_expr::SetIntersectionLevel`, which
+// is `#[cfg(feature = "unstable")]` — gate the relation API behind `unstable`.
+#[cfg(feature = "unstable")]
 use super::keyexpr::SetIntersectionLevel;
 
 #[prebindgen]
@@ -39,7 +42,8 @@ pub fn z_keyexpr_includes(a: &ZKeyExpr, b: &ZKeyExpr) -> bool {
     a.includes(b)
 }
 
-#[prebindgen]
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
 pub fn z_keyexpr_relation_to(a: &ZKeyExpr, b: &ZKeyExpr) -> SetIntersectionLevel {
     a.relation_to(b).into()
 }

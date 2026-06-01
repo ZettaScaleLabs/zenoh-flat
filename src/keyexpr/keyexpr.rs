@@ -5,11 +5,16 @@ use super::z_keyexpr::z_keyexpr_concat;
 use super::z_keyexpr::z_keyexpr_includes;
 use super::z_keyexpr::z_keyexpr_intersects;
 use super::z_keyexpr::z_keyexpr_join;
+#[cfg(feature = "unstable")]
 use super::z_keyexpr::z_keyexpr_relation_to;
 use prebindgen_proc_macro::prebindgen;
 
 /// Mirrors `zenoh::key_expr::SetIntersectionLevel` with a stable FFI surface.
-#[prebindgen]
+///
+/// Unstable: the underlying `zenoh::key_expr::SetIntersectionLevel` is
+/// `#[cfg(feature = "unstable")]`.
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
 pub enum SetIntersectionLevel {
     Disjoint = 0,
     Intersects = 1,
@@ -17,6 +22,7 @@ pub enum SetIntersectionLevel {
     Equals = 3,
 }
 
+#[cfg(feature = "unstable")]
 impl From<zenoh::key_expr::SetIntersectionLevel> for SetIntersectionLevel {
     fn from(value: zenoh::key_expr::SetIntersectionLevel) -> Self {
         match value {
@@ -99,7 +105,10 @@ pub fn keyexpr_includes(
 }
 
 /// Returns `SetIntersectionLevel` describing the relation of `a` to `b`.
-#[prebindgen]
+///
+/// Unstable: see [`SetIntersectionLevel`].
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
 pub fn keyexpr_relation_to(
     a: impl Into<KeyExpr> + Send + 'static,
     b: impl Into<KeyExpr> + Send + 'static,

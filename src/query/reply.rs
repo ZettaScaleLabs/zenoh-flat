@@ -15,10 +15,15 @@ pub struct Reply {
 
 impl From<&ZReply> for Reply {
     fn from(r: &ZReply) -> Self {
+        // `Reply::replier_id` is `#[unstable]`; without the feature the replier
+        // identity is simply unknown (`None`/0).
+        #[cfg(feature = "unstable")]
         let (replier_zid, replier_eid) = r
             .replier_id()
             .map(|id| (Some(ZenohId::from(id.zid())), id.eid() as i32))
             .unwrap_or((None, 0));
+        #[cfg(not(feature = "unstable"))]
+        let (replier_zid, replier_eid): (Option<ZenohId>, i32) = (None, 0);
         match r.result() {
             Ok(sample) => Reply {
                 replier_zid,

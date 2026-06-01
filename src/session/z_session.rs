@@ -1,10 +1,13 @@
 use crate::util::OnceDrop;
 use crate::{
     into_native, CongestionControl, ConsolidationMode, Encoding, Error, KeyExpr, Priority, Query,
-    QueryTarget, Reliability, Reply, ReplyKeyExpr, Sample, ZBytes, ZConfig, ZEncoding, ZKeyExpr,
+    QueryTarget, Reply, ReplyKeyExpr, Sample, ZBytes, ZConfig, ZEncoding, ZKeyExpr,
     ZPublisher, ZQuerier, ZQuery, ZQueryable, ZReply, ZSample, ZSession, ZSubscriber, ZZBytes,
     ZZenohId, ZenohId,
 };
+// `Reliability` is unstable-only (mirrors `zenoh::qos::Reliability`).
+#[cfg(feature = "unstable")]
+use crate::Reliability;
 use prebindgen_proc_macro::prebindgen;
 use std::time::Duration;
 use zenoh::{query::Selector, Wait};
@@ -17,7 +20,12 @@ pub fn z_open(config: ZConfig) -> Result<ZSession, Error> {
     zenoh::open(config).wait().map_err(Error::from)
 }
 
-#[prebindgen]
+// Two ABI variants: with `unstable`, the publisher takes a `reliability` param
+// (mirroring zenoh-c's unstable `reliability` option field); without it, the
+// param is absent. Exactly one compiles per build (mutually-exclusive `cfg`);
+// the matching `prebindgen(cfg=...)` lets the C consumer keep the right one.
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
 pub fn z_session_declare_publisher(
     session: &ZSession,
     key_expr: ZKeyExpr,
@@ -36,7 +44,26 @@ pub fn z_session_declare_publisher(
         .map_err(Error::from)
 }
 
-#[prebindgen]
+#[cfg(not(feature = "unstable"))]
+#[prebindgen(cfg = "not(feature = \"unstable\")")]
+pub fn z_session_declare_publisher(
+    session: &ZSession,
+    key_expr: ZKeyExpr,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+) -> Result<ZPublisher, Error> {
+    session
+        .declare_publisher(key_expr)
+        .congestion_control(congestion_control.into())
+        .priority(priority.into())
+        .express(express)
+        .wait()
+        .map_err(Error::from)
+}
+
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
 #[allow(clippy::too_many_arguments)]
 pub fn z_session_put(
     session: &ZSession,
@@ -62,7 +89,33 @@ pub fn z_session_put(
     builder.wait().map_err(Error::from)
 }
 
-#[prebindgen]
+#[cfg(not(feature = "unstable"))]
+#[prebindgen(cfg = "not(feature = \"unstable\")")]
+#[allow(clippy::too_many_arguments)]
+pub fn z_session_put(
+    session: &ZSession,
+    key_expr: &ZKeyExpr,
+    payload: ZZBytes,
+    encoding: &ZEncoding,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+    attachment: Option<ZZBytes>,
+) -> Result<(), Error> {
+    let mut builder = session
+        .put(key_expr, payload)
+        .congestion_control(congestion_control.into())
+        .encoding(encoding.clone())
+        .express(express)
+        .priority(priority.into());
+    if let Some(att) = attachment {
+        builder = builder.attachment(att);
+    }
+    builder.wait().map_err(Error::from)
+}
+
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
 pub fn z_session_delete(
     session: &ZSession,
     key_expr: &ZKeyExpr,
@@ -78,6 +131,27 @@ pub fn z_session_delete(
         .express(express)
         .priority(priority.into())
         .reliability(reliability.into());
+    if let Some(att) = attachment {
+        builder = builder.attachment(att);
+    }
+    builder.wait().map_err(Error::from)
+}
+
+#[cfg(not(feature = "unstable"))]
+#[prebindgen(cfg = "not(feature = \"unstable\")")]
+pub fn z_session_delete(
+    session: &ZSession,
+    key_expr: &ZKeyExpr,
+    congestion_control: CongestionControl,
+    priority: Priority,
+    express: bool,
+    attachment: Option<ZZBytes>,
+) -> Result<(), Error> {
+    let mut builder = session
+        .delete(key_expr)
+        .congestion_control(congestion_control.into())
+        .express(express)
+        .priority(priority.into());
     if let Some(att) = attachment {
         builder = builder.attachment(att);
     }
@@ -299,7 +373,10 @@ pub fn session_get(
 /// Advanced (ergonomic) twin of [`z_session_declare_publisher`]: accepts
 /// `impl Into<KeyExpr>` and delegates to the explicit `z_` function. Not
 /// wrapped by the C adapter; targets the JNI adapter.
-#[prebindgen]
+///
+/// Unstable: carries the `reliability` QoS param (see [`z_session_declare_publisher`]).
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
 pub fn session_declare_publisher(
     session: &ZSession,
     key_expr: impl Into<KeyExpr> + Send + 'static,
@@ -313,7 +390,10 @@ pub fn session_declare_publisher(
 }
 
 /// Advanced (ergonomic) twin of [`z_session_put`]. See [`session_declare_publisher`].
-#[prebindgen]
+///
+/// Unstable: carries the `reliability` QoS param.
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
 #[allow(clippy::too_many_arguments)]
 pub fn session_put(
     session: &ZSession,
@@ -344,7 +424,10 @@ pub fn session_put(
 }
 
 /// Advanced (ergonomic) twin of [`z_session_delete`]. See [`session_declare_publisher`].
-#[prebindgen]
+///
+/// Unstable: carries the `reliability` QoS param.
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
 pub fn session_delete(
     session: &ZSession,
     key_expr: impl Into<KeyExpr> + Send + 'static,

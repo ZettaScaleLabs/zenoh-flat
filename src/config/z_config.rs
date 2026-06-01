@@ -32,30 +32,18 @@ pub fn z_config_from_json(s: &str) -> Result<ZConfig, Error> {
 /// Parse a configuration from a JSON5-formatted string.
 #[prebindgen]
 pub fn z_config_from_json5(s: &str) -> Result<ZConfig, Error> {
-    let mut deserializer = json5::Deserializer::from_str(s).map_err(|e| Error {
+    // Stable serde path (`Config: Deserialize`), matching zenoh-c's
+    // `json5::from_str`. (`Config::from_deserializer` is an `#[unstable]` API.)
+    json5::from_str::<ZConfig>(s).map_err(|e| Error {
         message: format!("JSON error: {e}"),
-    })?;
-    ZConfig::from_deserializer(&mut deserializer).map_err(|err| match err {
-        Ok(c) => Error {
-            message: format!("Invalid configuration: {c}"),
-        },
-        Err(e) => Error {
-            message: format!("JSON error: {e}"),
-        },
     })
 }
 
 /// Parse a configuration from a YAML-formatted string.
 #[prebindgen]
 pub fn z_config_from_yaml(s: &str) -> Result<ZConfig, Error> {
-    let deserializer = serde_yaml::Deserializer::from_str(s);
-    ZConfig::from_deserializer(deserializer).map_err(|err| match err {
-        Ok(c) => Error {
-            message: format!("Invalid configuration: {c}"),
-        },
-        Err(e) => Error {
-            message: format!("YAML error: {e}"),
-        },
+    serde_yaml::from_str::<ZConfig>(s).map_err(|e| Error {
+        message: format!("YAML error: {e}"),
     })
 }
 

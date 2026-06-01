@@ -1,7 +1,10 @@
 use prebindgen_proc_macro::prebindgen;
 
 /// Reliability policy for publications/subscriptions.
-#[prebindgen]
+///
+/// Unstable: mirrors `zenoh::qos::Reliability` (an `#[unstable]` zenoh API), so
+/// the captured item carries the `feature = "unstable"` cfg for consumers.
+#[prebindgen(cfg = "feature = \"unstable\"")]
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reliability {
