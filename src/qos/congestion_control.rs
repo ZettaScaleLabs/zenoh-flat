@@ -1,18 +1,20 @@
 use prebindgen_proc_macro::prebindgen;
 
 /// Congestion control policy used when routing data.
+///
+/// `BlockFirst` mirrors `zenoh::qos::CongestionControl::BlockFirst`, which is
+/// `#[cfg(feature = "unstable")]`; prebindgen honors per-variant `#[cfg]`, so the
+/// generated C enum gains/loses `BlockFirst` with the `unstable` feature.
 #[prebindgen]
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CongestionControl {
     Drop = 0,
     Block = 1,
+    #[cfg(feature = "unstable")]
     BlockFirst = 2,
 }
 
-// `zenoh::qos::CongestionControl::BlockFirst` is `#[cfg(feature = "unstable")]`;
-// keep our C enum stable (all three variants always) and gate only the mapping.
-// Without `unstable`, `BlockFirst` degrades to `Block`.
 impl From<zenoh::qos::CongestionControl> for CongestionControl {
     fn from(value: zenoh::qos::CongestionControl) -> Self {
         match value {
@@ -31,8 +33,6 @@ impl From<CongestionControl> for zenoh::qos::CongestionControl {
             CongestionControl::Block => zenoh::qos::CongestionControl::Block,
             #[cfg(feature = "unstable")]
             CongestionControl::BlockFirst => zenoh::qos::CongestionControl::BlockFirst,
-            #[cfg(not(feature = "unstable"))]
-            CongestionControl::BlockFirst => zenoh::qos::CongestionControl::Block,
         }
     }
 }
