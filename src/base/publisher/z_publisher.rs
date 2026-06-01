@@ -1,0 +1,29 @@
+use crate::{Error, ZEncoding, ZPublisher, ZZBytes};
+use prebindgen_proc_macro::prebindgen;
+use zenoh::Wait;
+
+#[prebindgen]
+pub fn z_publisher_put(
+    publisher: &ZPublisher,
+    payload: ZZBytes,
+    encoding: &ZEncoding,
+    attachment: Option<ZZBytes>,
+) -> Result<(), Error> {
+    let mut publication = publisher.put(payload).encoding(encoding.clone());
+    if let Some(att) = attachment {
+        publication = publication.attachment(att);
+    }
+    publication.wait().map_err(Error::from)
+}
+
+#[prebindgen]
+pub fn z_publisher_delete(
+    publisher: &ZPublisher,
+    attachment: Option<ZZBytes>,
+) -> Result<(), Error> {
+    let mut delete = publisher.delete();
+    if let Some(att) = attachment {
+        delete = delete.attachment(att);
+    }
+    delete.wait().map_err(Error::from)
+}
