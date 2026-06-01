@@ -6,10 +6,13 @@ use zenoh::Wait;
 pub fn z_publisher_put(
     publisher: &ZPublisher,
     payload: ZZBytes,
-    encoding: &ZEncoding,
+    encoding: Option<&ZEncoding>,
     attachment: Option<ZZBytes>,
 ) -> Result<(), Error> {
-    let mut publication = publisher.put(payload).encoding(encoding.clone());
+    let mut publication = publisher.put(payload);
+    if let Some(enc) = encoding {
+        publication = publication.encoding(enc.clone());
+    }
     if let Some(att) = attachment {
         publication = publication.attachment(att);
     }

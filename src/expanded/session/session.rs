@@ -30,7 +30,7 @@ pub fn session_declare_subscriber(
 pub fn session_declare_queryable(
     session: &ZSession,
     key_expr: impl Into<KeyExpr> + Send + 'static,
-    complete: bool,
+    complete: Option<bool>,
     callback: impl Fn(Query) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<ZQueryable, Error> {
@@ -52,22 +52,24 @@ pub fn session_get(
     session: &ZSession,
     key_expr: impl Into<KeyExpr> + Send + 'static,
     parameters: Option<String>,
-    timeout_ms: i64,
-    target: QueryTarget,
-    consolidation: ConsolidationMode,
-    accept_replies: ReplyKeyExpr,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
+    timeout_ms: Option<i64>,
+    target: Option<QueryTarget>,
+    consolidation: Option<ConsolidationMode>,
+    accept_replies: Option<ReplyKeyExpr>,
+    congestion_control: Option<CongestionControl>,
+    priority: Option<Priority>,
+    express: Option<bool>,
     payload: Option<impl Into<ZBytes> + Send + 'static>,
-    encoding: impl Into<Encoding> + Send + 'static,
+    encoding: Option<impl Into<Encoding> + Send + 'static>,
     attachment: Option<impl Into<ZBytes> + Send + 'static>,
     callback: impl Fn(Reply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<(), Error> {
     let ke = into_native(key_expr.into())?;
     let payload = payload.map(|p| ZZBytes::from(p.into()));
-    let z_encoding: ZEncoding = encoding.into().try_into()?;
+    let z_encoding: Option<ZEncoding> = encoding
+        .map(|e| e.into().try_into())
+        .transpose()?;
     let attachment = attachment.map(|a| ZZBytes::from(a.into()));
     z_session_get(
         session,
@@ -81,7 +83,7 @@ pub fn session_get(
         priority,
         express,
         payload,
-        &z_encoding,
+        z_encoding.as_ref(),
         attachment,
         move |zr| callback(Reply::from(&zr)),
         on_close,
@@ -98,10 +100,10 @@ pub fn session_get(
 pub fn session_declare_publisher(
     session: &ZSession,
     key_expr: impl Into<KeyExpr> + Send + 'static,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
-    reliability: Reliability,
+    congestion_control: Option<CongestionControl>,
+    priority: Option<Priority>,
+    express: Option<bool>,
+    reliability: Option<Reliability>,
 ) -> Result<ZPublisher, Error> {
     let ke = into_native(key_expr.into())?;
     z_session_declare_publisher(
@@ -124,22 +126,24 @@ pub fn session_put(
     session: &ZSession,
     key_expr: impl Into<KeyExpr> + Send + 'static,
     payload: impl Into<ZBytes> + Send + 'static,
-    encoding: impl Into<Encoding> + Send + 'static,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
+    encoding: Option<impl Into<Encoding> + Send + 'static>,
+    congestion_control: Option<CongestionControl>,
+    priority: Option<Priority>,
+    express: Option<bool>,
     attachment: Option<impl Into<ZBytes> + Send + 'static>,
-    reliability: Reliability,
+    reliability: Option<Reliability>,
 ) -> Result<(), Error> {
     let ke = into_native(key_expr.into())?;
     let payload: ZZBytes = payload.into().into();
-    let z_encoding: ZEncoding = encoding.into().try_into()?;
+    let z_encoding: Option<ZEncoding> = encoding
+        .map(|e| e.into().try_into())
+        .transpose()?;
     let attachment = attachment.map(|a| ZZBytes::from(a.into()));
     z_session_put(
         session,
         &ke,
         payload,
-        &z_encoding,
+        z_encoding.as_ref(),
         congestion_control,
         priority,
         express,
@@ -156,11 +160,11 @@ pub fn session_put(
 pub fn session_delete(
     session: &ZSession,
     key_expr: impl Into<KeyExpr> + Send + 'static,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
+    congestion_control: Option<CongestionControl>,
+    priority: Option<Priority>,
+    express: Option<bool>,
     attachment: Option<impl Into<ZBytes> + Send + 'static>,
-    reliability: Reliability,
+    reliability: Option<Reliability>,
 ) -> Result<(), Error> {
     let ke = into_native(key_expr.into())?;
     let attachment = attachment.map(|a| ZZBytes::from(a.into()));
@@ -181,13 +185,13 @@ pub fn session_delete(
 pub fn session_declare_querier(
     session: &ZSession,
     key_expr: impl Into<KeyExpr> + Send + 'static,
-    target: QueryTarget,
-    consolidation: ConsolidationMode,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
-    timeout_ms: i64,
-    accept_replies: ReplyKeyExpr,
+    target: Option<QueryTarget>,
+    consolidation: Option<ConsolidationMode>,
+    congestion_control: Option<CongestionControl>,
+    priority: Option<Priority>,
+    express: Option<bool>,
+    timeout_ms: Option<i64>,
+    accept_replies: Option<ReplyKeyExpr>,
 ) -> Result<ZQuerier, Error> {
     let ke = into_native(key_expr.into())?;
     z_session_declare_querier(

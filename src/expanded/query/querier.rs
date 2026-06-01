@@ -9,19 +9,21 @@ pub fn querier_get(
     querier: &ZQuerier,
     parameters: Option<String>,
     payload: Option<impl Into<ZBytes> + Send + 'static>,
-    encoding: impl Into<Encoding> + Send + 'static,
+    encoding: Option<impl Into<Encoding> + Send + 'static>,
     attachment: Option<impl Into<ZBytes> + Send + 'static>,
     callback: impl Fn(Reply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<(), Error> {
     let payload = payload.map(|p| ZZBytes::from(p.into()));
-    let z_encoding: ZEncoding = encoding.into().try_into()?;
+    let z_encoding: Option<ZEncoding> = encoding
+        .map(|e| e.into().try_into())
+        .transpose()?;
     let attachment = attachment.map(|a| ZZBytes::from(a.into()));
     z_querier_get(
         querier,
         parameters,
         payload,
-        &z_encoding,
+        z_encoding.as_ref(),
         attachment,
         move |zr| callback(Reply::from(&zr)),
         on_close,

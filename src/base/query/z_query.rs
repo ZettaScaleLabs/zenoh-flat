@@ -34,32 +34,38 @@ pub fn z_query_reply_success(
     query: &ZQuery,
     key_expr: &ZKeyExpr,
     payload: ZZBytes,
-    encoding: &ZEncoding,
+    encoding: Option<&ZEncoding>,
     timestamp_ntp64: Option<i64>,
     attachment: Option<ZZBytes>,
-    express: bool,
+    express: Option<bool>,
 ) -> Result<(), Error> {
-    let mut b = query.reply(key_expr, payload).encoding(encoding.clone());
+    let mut b = query.reply(key_expr, payload);
+    if let Some(enc) = encoding {
+        b = b.encoding(enc.clone());
+    }
     if let Some(ntp) = timestamp_ntp64 {
         b = b.timestamp(Timestamp::new(NTP64(ntp as u64), TimestampId::rand()));
     }
     if let Some(att) = attachment {
         b = b.attachment(att);
     }
-    b.express(express).wait().map_err(Error::from)
+    if let Some(v) = express {
+        b = b.express(v);
+    }
+    b.wait().map_err(Error::from)
 }
 
 #[prebindgen]
 pub fn z_query_reply_error(
     query: &ZQuery,
     payload: ZZBytes,
-    encoding: &ZEncoding,
+    encoding: Option<&ZEncoding>,
 ) -> Result<(), Error> {
-    query
-        .reply_err(payload)
-        .encoding(encoding.clone())
-        .wait()
-        .map_err(Error::from)
+    let mut b = query.reply_err(payload);
+    if let Some(enc) = encoding {
+        b = b.encoding(enc.clone());
+    }
+    b.wait().map_err(Error::from)
 }
 
 #[prebindgen]
@@ -68,7 +74,7 @@ pub fn z_query_reply_delete(
     key_expr: &ZKeyExpr,
     timestamp_ntp64: Option<i64>,
     attachment: Option<ZZBytes>,
-    express: bool,
+    express: Option<bool>,
 ) -> Result<(), Error> {
     let mut b = query.reply_del(key_expr);
     if let Some(ntp) = timestamp_ntp64 {
@@ -77,5 +83,8 @@ pub fn z_query_reply_delete(
     if let Some(att) = attachment {
         b = b.attachment(att);
     }
-    b.express(express).wait().map_err(Error::from)
+    if let Some(v) = express {
+        b = b.express(v);
+    }
+    b.wait().map_err(Error::from)
 }

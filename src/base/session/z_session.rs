@@ -26,20 +26,27 @@ pub fn z_open(config: ZConfig) -> Result<ZSession, Error> {
 pub fn z_session_declare_publisher(
     session: &ZSession,
     key_expr: ZKeyExpr,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
-    #[cfg(feature = "unstable")] reliability: Reliability,
+    congestion_control: Option<CongestionControl>,
+    priority: Option<Priority>,
+    express: Option<bool>,
+    #[cfg(feature = "unstable")] reliability: Option<Reliability>,
 ) -> Result<ZPublisher, Error> {
     #[allow(unused_mut)]
-    let mut builder = session
-        .declare_publisher(key_expr)
-        .congestion_control(congestion_control.into())
-        .priority(priority.into())
-        .express(express);
+    let mut builder = session.declare_publisher(key_expr);
+    if let Some(cc) = congestion_control {
+        builder = builder.congestion_control(cc.into());
+    }
+    if let Some(p) = priority {
+        builder = builder.priority(p.into());
+    }
+    if let Some(v) = express {
+        builder = builder.express(v);
+    }
     #[cfg(feature = "unstable")]
     {
-        builder = builder.reliability(reliability.into());
+        if let Some(r) = reliability {
+            builder = builder.reliability(r.into());
+        }
     }
     builder.wait().map_err(Error::from)
 }
@@ -50,22 +57,31 @@ pub fn z_session_put(
     session: &ZSession,
     key_expr: &ZKeyExpr,
     payload: ZZBytes,
-    encoding: &ZEncoding,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
+    encoding: Option<&ZEncoding>,
+    congestion_control: Option<CongestionControl>,
+    priority: Option<Priority>,
+    express: Option<bool>,
     attachment: Option<ZZBytes>,
-    #[cfg(feature = "unstable")] reliability: Reliability,
+    #[cfg(feature = "unstable")] reliability: Option<Reliability>,
 ) -> Result<(), Error> {
-    let mut builder = session
-        .put(key_expr, payload)
-        .congestion_control(congestion_control.into())
-        .encoding(encoding.clone())
-        .express(express)
-        .priority(priority.into());
+    let mut builder = session.put(key_expr, payload);
+    if let Some(cc) = congestion_control {
+        builder = builder.congestion_control(cc.into());
+    }
+    if let Some(enc) = encoding {
+        builder = builder.encoding(enc.clone());
+    }
+    if let Some(v) = express {
+        builder = builder.express(v);
+    }
+    if let Some(p) = priority {
+        builder = builder.priority(p.into());
+    }
     #[cfg(feature = "unstable")]
     {
-        builder = builder.reliability(reliability.into());
+        if let Some(r) = reliability {
+            builder = builder.reliability(r.into());
+        }
     }
     if let Some(att) = attachment {
         builder = builder.attachment(att);
@@ -77,20 +93,27 @@ pub fn z_session_put(
 pub fn z_session_delete(
     session: &ZSession,
     key_expr: &ZKeyExpr,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
+    congestion_control: Option<CongestionControl>,
+    priority: Option<Priority>,
+    express: Option<bool>,
     attachment: Option<ZZBytes>,
-    #[cfg(feature = "unstable")] reliability: Reliability,
+    #[cfg(feature = "unstable")] reliability: Option<Reliability>,
 ) -> Result<(), Error> {
-    let mut builder = session
-        .delete(key_expr)
-        .congestion_control(congestion_control.into())
-        .express(express)
-        .priority(priority.into());
+    let mut builder = session.delete(key_expr);
+    if let Some(cc) = congestion_control {
+        builder = builder.congestion_control(cc.into());
+    }
+    if let Some(v) = express {
+        builder = builder.express(v);
+    }
+    if let Some(p) = priority {
+        builder = builder.priority(p.into());
+    }
     #[cfg(feature = "unstable")]
     {
-        builder = builder.reliability(reliability.into());
+        if let Some(r) = reliability {
+            builder = builder.reliability(r.into());
+        }
     }
     if let Some(att) = attachment {
         builder = builder.attachment(att);
@@ -123,26 +146,38 @@ pub fn z_session_declare_subscriber(
 pub fn z_session_declare_querier(
     session: &ZSession,
     key_expr: ZKeyExpr,
-    target: QueryTarget,
-    consolidation: ConsolidationMode,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
-    timeout_ms: i64,
-    accept_replies: ReplyKeyExpr,
+    target: Option<QueryTarget>,
+    consolidation: Option<ConsolidationMode>,
+    congestion_control: Option<CongestionControl>,
+    priority: Option<Priority>,
+    express: Option<bool>,
+    timeout_ms: Option<i64>,
+    accept_replies: Option<ReplyKeyExpr>,
 ) -> Result<ZQuerier, Error> {
-    let consolidation: zenoh::query::ConsolidationMode = consolidation.into();
-    session
-        .declare_querier(key_expr)
-        .congestion_control(congestion_control.into())
-        .consolidation(consolidation)
-        .express(express)
-        .target(target.into())
-        .priority(priority.into())
-        .timeout(Duration::from_millis(timeout_ms as u64))
-        .accept_replies(accept_replies.into())
-        .wait()
-        .map_err(Error::from)
+    let mut builder = session.declare_querier(key_expr);
+    if let Some(cc) = congestion_control {
+        builder = builder.congestion_control(cc.into());
+    }
+    if let Some(c) = consolidation {
+        let c: zenoh::query::ConsolidationMode = c.into();
+        builder = builder.consolidation(c);
+    }
+    if let Some(v) = express {
+        builder = builder.express(v);
+    }
+    if let Some(t) = target {
+        builder = builder.target(t.into());
+    }
+    if let Some(p) = priority {
+        builder = builder.priority(p.into());
+    }
+    if let Some(ms) = timeout_ms {
+        builder = builder.timeout(Duration::from_millis(ms as u64));
+    }
+    if let Some(ar) = accept_replies {
+        builder = builder.accept_replies(ar.into());
+    }
+    builder.wait().map_err(Error::from)
 }
 
 /// Declare a queryable delivering each query as an opaque [`ZQuery`] handle
@@ -151,14 +186,16 @@ pub fn z_session_declare_querier(
 pub fn z_session_declare_queryable(
     session: &ZSession,
     key_expr: ZKeyExpr,
-    complete: bool,
+    complete: Option<bool>,
     callback: impl Fn(ZQuery) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<ZQueryable, Error> {
     let on_close = OnceDrop::new(on_close);
-    session
-        .declare_queryable(key_expr)
-        .complete(complete)
+    let mut builder = session.declare_queryable(key_expr);
+    if let Some(v) = complete {
+        builder = builder.complete(v);
+    }
+    builder
         .callback(move |query| {
             let _ = &on_close;
             callback(query);
@@ -188,33 +225,49 @@ pub fn z_session_get(
     session: &ZSession,
     key_expr: &ZKeyExpr,
     parameters: Option<String>,
-    timeout_ms: i64,
-    target: QueryTarget,
-    consolidation: ConsolidationMode,
-    accept_replies: ReplyKeyExpr,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
+    timeout_ms: Option<i64>,
+    target: Option<QueryTarget>,
+    consolidation: Option<ConsolidationMode>,
+    accept_replies: Option<ReplyKeyExpr>,
+    congestion_control: Option<CongestionControl>,
+    priority: Option<Priority>,
+    express: Option<bool>,
     payload: Option<ZZBytes>,
-    encoding: &ZEncoding,
+    encoding: Option<&ZEncoding>,
     attachment: Option<ZZBytes>,
     callback: impl Fn(ZReply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
 ) -> Result<(), Error> {
-    let consolidation: zenoh::query::ConsolidationMode = consolidation.into();
     let selector = Selector::owned(key_expr, parameters.unwrap_or_default());
     let on_close = OnceDrop::new(on_close);
-    let mut builder = session
-        .get(selector)
-        .congestion_control(congestion_control.into())
-        .priority(priority.into())
-        .express(express)
-        .target(target.into())
-        .timeout(Duration::from_millis(timeout_ms as u64))
-        .consolidation(consolidation)
-        .accept_replies(accept_replies.into());
+    let mut builder = session.get(selector);
+    if let Some(cc) = congestion_control {
+        builder = builder.congestion_control(cc.into());
+    }
+    if let Some(p) = priority {
+        builder = builder.priority(p.into());
+    }
+    if let Some(v) = express {
+        builder = builder.express(v);
+    }
+    if let Some(t) = target {
+        builder = builder.target(t.into());
+    }
+    if let Some(ms) = timeout_ms {
+        builder = builder.timeout(Duration::from_millis(ms as u64));
+    }
+    if let Some(c) = consolidation {
+        let c: zenoh::query::ConsolidationMode = c.into();
+        builder = builder.consolidation(c);
+    }
+    if let Some(ar) = accept_replies {
+        builder = builder.accept_replies(ar.into());
+    }
     if let Some(payload) = payload {
-        builder = builder.payload(payload).encoding(encoding.clone());
+        builder = builder.payload(payload);
+        if let Some(enc) = encoding {
+            builder = builder.encoding(enc.clone());
+        }
     }
     if let Some(att) = attachment {
         builder = builder.attachment(att);

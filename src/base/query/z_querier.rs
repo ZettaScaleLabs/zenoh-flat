@@ -11,7 +11,7 @@ pub fn z_querier_get(
     querier: &ZQuerier,
     parameters: Option<String>,
     payload: Option<ZZBytes>,
-    encoding: &ZEncoding,
+    encoding: Option<&ZEncoding>,
     attachment: Option<ZZBytes>,
     callback: impl Fn(ZReply) + Send + Sync + 'static,
     on_close: impl Fn() + Send + Sync + 'static,
@@ -22,7 +22,10 @@ pub fn z_querier_get(
         builder = builder.parameters(params);
     }
     if let Some(payload) = payload {
-        builder = builder.payload(payload).encoding(encoding.clone());
+        builder = builder.payload(payload);
+        if let Some(enc) = encoding {
+            builder = builder.encoding(enc.clone());
+        }
     }
     if let Some(attachment) = attachment {
         builder = builder.attachment(attachment);
