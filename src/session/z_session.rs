@@ -20,50 +20,33 @@ pub fn z_open(config: ZConfig) -> Result<ZSession, Error> {
     zenoh::open(config).wait().map_err(Error::from)
 }
 
-// Two ABI variants: with `unstable`, the publisher takes a `reliability` param
-// (mirroring zenoh-c's unstable `reliability` option field); without it, the
-// param is absent. Exactly one compiles per build (mutually-exclusive `cfg`);
-// the matching `prebindgen(cfg=...)` lets the C consumer keep the right one.
-#[cfg(feature = "unstable")]
-#[prebindgen(cfg = "feature = \"unstable\"")]
+// The `reliability` QoS is unstable in zenoh; gate the single parameter (and the
+// `.reliability()` call) with `#[cfg(feature = "unstable")]`. prebindgen honors
+// per-parameter cfg, so the captured signature — and the generated C ABI — gains
+// or loses the trailing `reliability` param with the feature, from ONE definition.
+#[prebindgen]
 pub fn z_session_declare_publisher(
     session: &ZSession,
     key_expr: ZKeyExpr,
     congestion_control: CongestionControl,
     priority: Priority,
     express: bool,
-    reliability: Reliability,
+    #[cfg(feature = "unstable")] reliability: Reliability,
 ) -> Result<ZPublisher, Error> {
-    session
+    #[allow(unused_mut)]
+    let mut builder = session
         .declare_publisher(key_expr)
         .congestion_control(congestion_control.into())
         .priority(priority.into())
-        .express(express)
-        .reliability(reliability.into())
-        .wait()
-        .map_err(Error::from)
+        .express(express);
+    #[cfg(feature = "unstable")]
+    {
+        builder = builder.reliability(reliability.into());
+    }
+    builder.wait().map_err(Error::from)
 }
 
-#[cfg(not(feature = "unstable"))]
-#[prebindgen(cfg = "not(feature = \"unstable\")")]
-pub fn z_session_declare_publisher(
-    session: &ZSession,
-    key_expr: ZKeyExpr,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
-) -> Result<ZPublisher, Error> {
-    session
-        .declare_publisher(key_expr)
-        .congestion_control(congestion_control.into())
-        .priority(priority.into())
-        .express(express)
-        .wait()
-        .map_err(Error::from)
-}
-
-#[cfg(feature = "unstable")]
-#[prebindgen(cfg = "feature = \"unstable\"")]
+#[prebindgen]
 #[allow(clippy::too_many_arguments)]
 pub fn z_session_put(
     session: &ZSession,
@@ -74,33 +57,7 @@ pub fn z_session_put(
     priority: Priority,
     express: bool,
     attachment: Option<ZZBytes>,
-    reliability: Reliability,
-) -> Result<(), Error> {
-    let mut builder = session
-        .put(key_expr, payload)
-        .congestion_control(congestion_control.into())
-        .encoding(encoding.clone())
-        .express(express)
-        .priority(priority.into())
-        .reliability(reliability.into());
-    if let Some(att) = attachment {
-        builder = builder.attachment(att);
-    }
-    builder.wait().map_err(Error::from)
-}
-
-#[cfg(not(feature = "unstable"))]
-#[prebindgen(cfg = "not(feature = \"unstable\")")]
-#[allow(clippy::too_many_arguments)]
-pub fn z_session_put(
-    session: &ZSession,
-    key_expr: &ZKeyExpr,
-    payload: ZZBytes,
-    encoding: &ZEncoding,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
-    attachment: Option<ZZBytes>,
+    #[cfg(feature = "unstable")] reliability: Reliability,
 ) -> Result<(), Error> {
     let mut builder = session
         .put(key_expr, payload)
@@ -108,14 +65,17 @@ pub fn z_session_put(
         .encoding(encoding.clone())
         .express(express)
         .priority(priority.into());
+    #[cfg(feature = "unstable")]
+    {
+        builder = builder.reliability(reliability.into());
+    }
     if let Some(att) = attachment {
         builder = builder.attachment(att);
     }
     builder.wait().map_err(Error::from)
 }
 
-#[cfg(feature = "unstable")]
-#[prebindgen(cfg = "feature = \"unstable\"")]
+#[prebindgen]
 pub fn z_session_delete(
     session: &ZSession,
     key_expr: &ZKeyExpr,
@@ -123,35 +83,17 @@ pub fn z_session_delete(
     priority: Priority,
     express: bool,
     attachment: Option<ZZBytes>,
-    reliability: Reliability,
-) -> Result<(), Error> {
-    let mut builder = session
-        .delete(key_expr)
-        .congestion_control(congestion_control.into())
-        .express(express)
-        .priority(priority.into())
-        .reliability(reliability.into());
-    if let Some(att) = attachment {
-        builder = builder.attachment(att);
-    }
-    builder.wait().map_err(Error::from)
-}
-
-#[cfg(not(feature = "unstable"))]
-#[prebindgen(cfg = "not(feature = \"unstable\")")]
-pub fn z_session_delete(
-    session: &ZSession,
-    key_expr: &ZKeyExpr,
-    congestion_control: CongestionControl,
-    priority: Priority,
-    express: bool,
-    attachment: Option<ZZBytes>,
+    #[cfg(feature = "unstable")] reliability: Reliability,
 ) -> Result<(), Error> {
     let mut builder = session
         .delete(key_expr)
         .congestion_control(congestion_control.into())
         .express(express)
         .priority(priority.into());
+    #[cfg(feature = "unstable")]
+    {
+        builder = builder.reliability(reliability.into());
+    }
     if let Some(att) = attachment {
         builder = builder.attachment(att);
     }
