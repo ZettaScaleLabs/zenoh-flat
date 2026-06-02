@@ -9,7 +9,7 @@ zenoh = { version = "1.9.0", git = "https://github.com/eclipse-zenoh/zenoh.git",
 android-logd-logger = "0.4.0"
 tracing = { version = "0.1" , features = ["log"] }
 prebindgen = { path = "../prebindgen/prebindgen" }
-prebindgen-proc-macro = { path = "../prebindgen/prebindgen-proc-macro" }
+prebindgen-proc-macro = { path = "../prebindgen/prebindgen-proc-macro", features = ["inline"] }
 json5 = "0.4.1"
 serde_yaml = "0.9.19"
 
@@ -50,3 +50,17 @@ default = [
     "transport_ws",
     "transport_quic_datagram",
 ]
+
+[dev-dependencies]
+clap = { version = "4", features = ["derive"] }
+
+# Match eclipse-zenoh/zenoh's release profile so the throughput examples are
+# benchmarked under the same codegen settings as the native baseline (and as a
+# production FFI build would use). Without LTO the thin `z_*` wrappers can't be
+# inlined across the crate boundary, which shows up as fake "wrapping overhead".
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
+panic = "abort"
+debug = false
