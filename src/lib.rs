@@ -14,6 +14,7 @@
 
 pub const PREBINDGEN_OUT_DIR: &str = prebindgen_proc_macro::prebindgen_out_dir!();
 pub const FEATURES: &str = prebindgen_proc_macro::features!();
+pub const MANIFEST_DIR: &str = prebindgen_proc_macro::manifest_dir!();
 
 pub(crate) mod base;
 pub(crate) mod error;
