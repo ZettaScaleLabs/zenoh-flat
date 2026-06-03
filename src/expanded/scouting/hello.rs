@@ -27,3 +27,11 @@ impl From<ZHello> for Hello {
         Self::from(&h)
     }
 }
+
+/// Zenoh id of the node that emitted this hello, as the natively-representable
+/// [`ZenohId`] value. Typed twin of [`crate::z_hello_zid`] (which yields the
+/// opaque `ZZenohId` handle); this is the form real bindings use.
+#[prebindgen]
+pub fn hello_zid(h: &ZHello) -> ZenohId {
+    ZenohId::from(z_hello_zid(h))
+}

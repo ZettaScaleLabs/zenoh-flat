@@ -48,3 +48,15 @@ impl From<&ZReply> for Reply {
 pub fn z_reply_expand(r: &ZReply) -> Reply {
     Reply::from(r)
 }
+
+/// Zenoh id of the node that answered, as the natively-representable
+/// [`ZenohId`] value (`None` when unknown). Typed twin of
+/// [`crate::z_reply_replier_zid`] (which yields the opaque `ZZenohId` handle);
+/// this is the form real bindings use.
+///
+/// Unstable: `Reply::replier_id` is an `#[unstable]` zenoh API.
+#[cfg(feature = "unstable")]
+#[prebindgen(cfg = "feature = \"unstable\"")]
+pub fn reply_replier_zid(r: &ZReply) -> Option<ZenohId> {
+    r.replier_id().map(|id| ZenohId::from(id.zid()))
+}
