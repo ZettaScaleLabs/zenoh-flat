@@ -1,4 +1,5 @@
 pub(crate) mod consolidation_mode;
+pub(crate) mod parameters;
 pub(crate) mod querier;
 pub(crate) mod query_target;
 pub(crate) mod queryable;
@@ -22,6 +23,8 @@ pub fn query_get_keyexpr(q: &Query) -> &KeyExpr {
 }
 
 /// Return the parameters that refine the query selector.
+///
+/// Process the returned string with the `parameters_*` functions.
 #[prebindgen]
 pub fn query_get_parameters(q: &Query) -> String {
     q.parameters().as_str().to_string()
