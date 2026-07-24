@@ -24,13 +24,10 @@ pub fn config_new_from_file(path: &str) -> Result<Config, Error> {
     Config::from_file(path)
 }
 
-/// Parse a configuration from JSON text.
-#[prebindgen]
-pub fn config_new_from_json(s: &str) -> Result<Config, Error> {
-    config_new_from_json5(s)
-}
-
 /// Parse a configuration from a JSON5-formatted string.
+///
+/// The counterpart of [`zenoh::Config::from_json5`]. JSON is a subset of JSON5,
+/// so plain JSON text parses as well.
 #[prebindgen]
 pub fn config_new_from_json5(s: &str) -> Result<Config, Error> {
     // Stable serde path (`Config: Deserialize`), matching zenoh-c's
@@ -39,6 +36,10 @@ pub fn config_new_from_json5(s: &str) -> Result<Config, Error> {
 }
 
 /// Parse a configuration from a YAML-formatted string.
+///
+/// Base zenoh has no YAML constructor (it parses YAML only when loading a
+/// `.yaml` file via [`zenoh::Config::from_file`]); this is a binding
+/// convenience for parsing YAML held in memory.
 #[prebindgen]
 pub fn config_new_from_yaml(s: &str) -> Result<Config, Error> {
     serde_yaml::from_str::<Config>(s).map_err(|e| format!("YAML error: {e}").into())
