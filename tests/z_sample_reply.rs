@@ -31,8 +31,8 @@ use zenoh_flat::{
     KeyExpr, Reply, Sample, SampleKind, Selector, Session, ZBytes, config_new_default,
     keyexpr_new_try_from, open, query_reply_sample, reply_get_sample, reply_is_ok,
     sample_get_attachment, sample_get_kind, sample_get_payload, sample_get_timestamp,
-    sample_new_delete, sample_new_put, session_declare_queryable, session_get, timestamp_get_ntp64,
-    zbytes_as_bytes, zbytes_new_from_vec,
+    sample_new_delete, sample_new_put, session_declare_queryable, session_get, zbytes_as_bytes,
+    zbytes_new_from_vec,
 };
 
 /// What the `get` callback extracted from the received reply.
@@ -40,14 +40,14 @@ struct Received {
     ok: bool,
     kind: Option<SampleKind>,
     payload: Vec<u8>,
-    ntp64: Option<i64>,
+    ntp64: Option<u64>,
     attachment: Option<Vec<u8>>,
 }
 
 // The `reliability` parameter of the sample constructors only exists with the
 // `unstable` feature; wrap the calls so the test body stays feature-agnostic.
 
-fn make_put(key_expr: KeyExpr, payload: ZBytes, ntp64: i64, attachment: ZBytes) -> Sample {
+fn make_put(key_expr: KeyExpr, payload: ZBytes, ntp64: u64, attachment: ZBytes) -> Sample {
     #[cfg(not(feature = "unstable"))]
     {
         sample_new_put(
@@ -77,7 +77,7 @@ fn make_put(key_expr: KeyExpr, payload: ZBytes, ntp64: i64, attachment: ZBytes) 
     }
 }
 
-fn make_delete(key_expr: KeyExpr, ntp64: i64, attachment: ZBytes) -> Sample {
+fn make_delete(key_expr: KeyExpr, ntp64: u64, attachment: ZBytes) -> Sample {
     #[cfg(not(feature = "unstable"))]
     {
         sample_new_delete(
@@ -110,7 +110,7 @@ fn round_trip(
     session: &Session,
     key: &str,
     is_delete: bool,
-    ntp64: i64,
+    ntp64: u64,
     payload: &[u8],
     attachment: &[u8],
 ) -> Received {
@@ -171,7 +171,7 @@ fn round_trip(
             if let Some(sample) = reply_get_sample(&reply) {
                 rec.kind = Some(sample_get_kind(sample));
                 rec.payload = zbytes_as_bytes(sample_get_payload(sample)).into_owned();
-                rec.ntp64 = sample_get_timestamp(sample).map(timestamp_get_ntp64);
+                rec.ntp64 = sample_get_timestamp(sample).map(|t| t.ntp64);
                 rec.attachment =
                     sample_get_attachment(sample).map(|z| zbytes_as_bytes(z).into_owned());
             }
@@ -201,7 +201,7 @@ fn round_trip(
 fn put_sample_round_trip_preserves_metadata() {
     let session = open(config_new_default()).expect("open session");
 
-    let ntp64: i64 = 0x0123_4567_89ab_cdef;
+    let ntp64: u64 = 0x0123_4567_89ab_cdef;
     let payload = b"hello put sample";
     let attachment = b"put-attachment";
 
@@ -237,7 +237,7 @@ fn put_sample_round_trip_preserves_metadata() {
 fn delete_sample_round_trip_preserves_kind() {
     let session = open(config_new_default()).expect("open session");
 
-    let ntp64: i64 = 0x0011_2233_4455_6677;
+    let ntp64: u64 = 0x0011_2233_4455_6677;
     let attachment = b"delete-attachment";
 
     let rec = round_trip(

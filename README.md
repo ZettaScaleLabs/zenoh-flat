@@ -6,10 +6,10 @@ crate. It re-exports the zenoh types it operates on under their own Rust names
 API as free functions whose names mirror the type they act on:
 
 ```rust
-let config = config_default();
+let config = config_new_default();
 let session = open(config)?;
-let ke = keyexpr_try_from("demo/example".to_string())?;
-session_put(&session, &ke, bytes_from_slice(b"hello"), /* … */)?;
+let ke = keyexpr_new_try_from("demo/example".to_string())?;
+session_put(&session, &ke, zbytes_new_from_slice(b"hello"), /* … */)?;
 ```
 
 Every public function is annotated with `#[prebindgen]`, so
@@ -27,10 +27,99 @@ bindings for other languages (C via `lang::Cbindgen`, Kotlin/JNI via
   liveliness subscribers deliver items through an `impl Fn(..)` callback plus an
   `on_close` hook. This keeps the surface trivially FFI-exportable.
 - **Errors as `Result<T, Error>`.** `Error` is zenoh's boxed error; the
-  `error_message` accessor renders it to a `String` for callers that cannot carry
-  a Rust error across the boundary.
-- **Opaque handles vs. value types.** Handle types (`Session`, `Publisher`,
-  `Sample`, …) cross as opaque pointers; enums and small structs cross by value.
+  `error_get_message` accessor renders it to a `String` for callers that cannot
+  carry a Rust error across the boundary.
+- **Opaque handles, values, and twins.** See [Type representation](#type-representation):
+  resource types (`Session`, `Publisher`, …) cross as opaque handles, pure data
+  (`EntityGlobalId`, `Timestamp`, the `*Config` inputs) crosses by value, and
+  payload-carrying types (`Sample`, `Encoding`, `Hello`, …) offer both.
+
+## Type representation
+
+zenoh-flat presents every zenoh concept in one of **three shapes**. Picking the right shape for a
+type is the central design decision in this crate, so the rules are written out here.
+
+### The three shapes
+
+- **Handle** — a live object with identity, or a resource that must be released: a session, a
+  publisher, a subscription, a key expression, a byte buffer. A handle crosses the boundary as an
+  opaque pointer; you read its parts through `<type>_get_<field>` accessor functions, and you are
+  responsible for closing or freeing it. Examples: `Session`, `Publisher`, `Subscriber`, `KeyExpr`,
+  `ZBytes`.
+- **Value** — plain data with no identity and nothing to release: an entity id, a report, a small
+  configuration. A value is an ordinary Rust `struct` with public fields and crosses by copying
+  them. Examples: `EntityGlobalId { zid, eid }`, `SourceInfo { source, sn }`, `Timestamp`, and the
+  input configs (`HistoryConfig`, `RecoveryConfig`, …).
+- **Twin** — a type worth having *both* ways. It is fully described by its fields (so it can be a
+  value), but it also carries a **payload** — an unbounded string, list, or `ZBytes` — you may not
+  want to copy on every access (so a handle lets you read the cheap fields without materializing it).
+  Such a type gets a handle *and* a value form: the handle keeps zenoh's name (`Sample`, `Encoding`)
+  and the value form adds a `Struct` suffix (`SampleStruct`, `EncodingStruct`), reached with a
+  `<type>_to_struct` accessor. Examples: `Sample`, `Reply`, `ReplyError`, `Hello`, `Encoding`.
+
+### Choosing a shape
+
+Two independent, objective questions — no "is it big or common enough?" guesswork:
+
+- **Give it a handle?** Yes if the type is a **live resource** (a session, a subscription —
+  something with identity or a lifecycle, not just readable data), **or** if it has a **payload
+  field**: a `String`, a list, a `ZBytes`, or anything containing one. Across a language boundary
+  such a field is not free — every language must reallocate and re-encode it (a Rust `String`
+  becomes a Java `String`, a C `char*`, …), so a handle lets a caller read the cheap fields
+  (`Encoding`'s id) without paying to materialize the payload. This is an *output* concern: a type
+  you only ever *build and pass in*, like `Selector`, never lazily reads, so its string fields don't
+  force a handle.
+- **Give it a value form?** Yes if the type is **fully defined by its readable fields** — a data
+  snapshot, not an opaque resource.
+
+A type can answer **yes to both** — that is exactly what a **twin** is (`Sample`, `Encoding`,
+`Hello`): a handle *and* a value form, no separate decision to make. A type of only cheap, fixed-size
+fields (an id, a timestamp) answers no to the handle question and is **value-only**. A live resource
+answers no to the value question and is **handle-only**.
+
+A **bounded**, fixed-maximum blob — a 16-byte node id — counts as cheap, not a payload: copying it
+whole is trivial. Only *unbounded* data (arbitrary-length strings and lists) is a materialization
+cost. So a `Timestamp` (a `u64` plus a ≤16-byte id) is value-only, while an `Encoding` (which
+carries an arbitrary-length schema) is a twin.
+
+### Naming
+
+- Re-exported zenoh types keep zenoh's own name: `Sample`, `KeyExpr`, `ZBytes`, `ZenohId`.
+- The `Struct` suffix exists *only* to tell a value apart from a same-named handle (`Sample` →
+  `SampleStruct`). A value with no handle uses the plain name (`EntityGlobalId`, `Miss`).
+- Functions are `<type>_<verb>`: `sample_get_payload`, `sample_new_put`, `keyexpr_new_try_from`.
+
+### Be faithful to zenoh — the most important rule
+
+A value form must mirror zenoh **exactly**: the same field types and the same optionality,
+expressed with ordinary Rust types (`u32`, `Option<u32>`), never a wire- or binding-specific type.
+
+- **Never fake "unknown" with a sentinel.** If zenoh returns an `Option`, flat returns an `Option`.
+  For a sample's source, "no source information at all" and "the source's fields happen to be `0`"
+  are different facts and must stay different — `sample_get_source_info` returns `Option<SourceInfo>`
+  (absent ⇒ `None`), never a `SourceInfo` with zeroed fields.
+- **Put the optionality on the right edge.** When a sample's source is known, its entity id and
+  sequence number always exist; only the *whole* source-info is optional. So those fields are
+  non-optional and the parent carries the `Option`, not a struct full of `Option` fields.
+
+### One source of truth per field
+
+Each field is read one way: through the value, or a grouped accessor that returns it. A convenience
+shortcut for a nested field may be added, but it must **delegate** to that same path rather than
+re-deriving the value — two independent bodies reading the same field eventually disagree.
+
+### Construction mirrors zenoh
+
+flat exposes only the constructors zenoh actually provides (`sample_new_put`,
+`keyexpr_new_try_from`, …); it never invents a "build the whole struct from its fields"
+constructor. If zenoh gives no public way to build a type — the things you only ever *receive*,
+such as a `Reply` — flat offers no constructor either, and the type is read-only.
+
+### Bindings choose; flat stays neutral
+
+flat offers the menu — handle, value, or both — and each language binding selects the forms that
+suit it. flat itself never names a target language or wire detail (C, JNI, Kotlin, pointer widths,
+…); turning these shapes into a concrete ABI is the binding generator's job.
 
 ## Layout
 

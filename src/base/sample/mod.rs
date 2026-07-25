@@ -1,4 +1,6 @@
 pub(crate) mod sample_kind;
+#[cfg(feature = "unstable")]
+pub(crate) mod source_info;
 
 use prebindgen_proc_macro::prebindgen;
 use zenoh::{
@@ -9,7 +11,7 @@ use zenoh::{
 use self::sample_kind::SampleKind;
 use crate::{CongestionControl, Encoding, KeyExpr, Priority, Sample, Timestamp, ZBytes};
 #[cfg(feature = "unstable")]
-use crate::{Reliability, ZenohId};
+use crate::{Reliability, SourceInfo};
 
 /// Create a sample that publishes a value.
 ///
@@ -22,7 +24,7 @@ pub fn sample_new_put(
     key_expr: KeyExpr,
     payload: ZBytes,
     encoding: Option<&Encoding>,
-    timestamp_ntp64: Option<i64>,
+    timestamp_ntp64: Option<u64>,
     attachment: Option<ZBytes>,
     congestion_control: Option<CongestionControl>,
     priority: Option<Priority>,
@@ -34,7 +36,7 @@ pub fn sample_new_put(
         builder = builder.encoding(enc.clone());
     }
     if let Some(ntp) = timestamp_ntp64 {
-        builder = builder.timestamp(Timestamp::new(NTP64(ntp as u64), TimestampId::rand()));
+        builder = builder.timestamp(zenoh::time::Timestamp::new(NTP64(ntp), TimestampId::rand()));
     }
     if let Some(att) = attachment {
         builder = builder.attachment(att);
@@ -64,7 +66,7 @@ pub fn sample_new_put(
 #[prebindgen]
 pub fn sample_new_delete(
     key_expr: KeyExpr,
-    timestamp_ntp64: Option<i64>,
+    timestamp_ntp64: Option<u64>,
     attachment: Option<ZBytes>,
     congestion_control: Option<CongestionControl>,
     priority: Option<Priority>,
@@ -73,7 +75,7 @@ pub fn sample_new_delete(
 ) -> Sample {
     let mut builder = SampleBuilder::delete(key_expr);
     if let Some(ntp) = timestamp_ntp64 {
-        builder = builder.timestamp(Timestamp::new(NTP64(ntp as u64), TimestampId::rand()));
+        builder = builder.timestamp(zenoh::time::Timestamp::new(NTP64(ntp), TimestampId::rand()));
     }
     if let Some(att) = attachment {
         builder = builder.attachment(att);
@@ -122,8 +124,8 @@ pub fn sample_get_kind(s: &Sample) -> SampleKind {
 
 /// Return the publication timestamp, when present.
 #[prebindgen]
-pub fn sample_get_timestamp(s: &Sample) -> Option<&Timestamp> {
-    s.timestamp()
+pub fn sample_get_timestamp(s: &Sample) -> Option<Timestamp> {
+    s.timestamp().map(Timestamp::from)
 }
 
 /// Return whether express delivery was requested.
@@ -159,29 +161,94 @@ pub fn sample_get_reliability(s: &Sample) -> Reliability {
     s.reliability().into()
 }
 
-/// Return the identifier of the node that produced the sample, when known.
+/// A sample decomposed into its fields as a plain value.
 ///
-/// This information is available only when unstable features are enabled.
-#[cfg(feature = "unstable")]
-#[prebindgen(cfg = "feature = \"unstable\"")]
-pub fn sample_get_source_zid(s: &Sample) -> Option<ZenohId> {
-    s.source_info().map(|si| si.source_id().zid())
+/// This is the value form of [`Sample`]: it owns a full copy of every field,
+/// for callers that prefer the whole sample as data over reading fields from
+/// the handle one at a time.
+#[prebindgen]
+#[derive(Clone, Debug)]
+pub struct SampleStruct {
+    /// Key expression on which the sample was published.
+    pub key_expr: KeyExpr,
+    /// Sample payload.
+    pub payload: ZBytes,
+    /// Format information associated with the payload.
+    pub encoding: Encoding,
+    /// Whether the sample publishes a value or announces a deletion.
+    pub kind: SampleKind,
+    /// Publication timestamp, when present.
+    pub timestamp: Option<Timestamp>,
+    /// Whether express delivery was requested.
+    pub express: bool,
+    /// Delivery priority.
+    pub priority: Priority,
+    /// Congestion-control policy used for the sample.
+    pub congestion_control: CongestionControl,
+    /// User-defined metadata associated with the sample, when present.
+    pub attachment: Option<ZBytes>,
+    /// Reliability policy used to deliver the sample. Available only when
+    /// unstable features are enabled.
+    #[cfg(feature = "unstable")]
+    pub reliability: Reliability,
+    /// Source information, when known. Available only when unstable features
+    /// are enabled.
+    #[cfg(feature = "unstable")]
+    pub source_info: Option<SourceInfo>,
 }
 
-/// Return the entity identifier of the sample's source, or `0` when unknown.
-///
-/// This information is available only when unstable features are enabled.
-#[cfg(feature = "unstable")]
-#[prebindgen(cfg = "feature = \"unstable\"")]
-pub fn sample_get_source_eid(s: &Sample) -> u32 {
-    s.source_info().map(|si| si.source_id().eid()).unwrap_or(0)
+impl From<&Sample> for SampleStruct {
+    fn from(s: &Sample) -> Self {
+        SampleStruct {
+            key_expr: s.key_expr().clone(),
+            payload: s.payload().clone(),
+            encoding: s.encoding().clone(),
+            kind: s.kind().into(),
+            timestamp: s.timestamp().map(Timestamp::from),
+            express: s.express(),
+            priority: s.priority().into(),
+            congestion_control: s.congestion_control().into(),
+            attachment: s.attachment().cloned(),
+            #[cfg(feature = "unstable")]
+            reliability: s.reliability().into(),
+            #[cfg(feature = "unstable")]
+            source_info: s.source_info().map(SourceInfo::from),
+        }
+    }
 }
 
-/// Return the source sequence number, or `0` when source information is absent.
-///
-/// This information is available only when unstable features are enabled.
-#[cfg(feature = "unstable")]
-#[prebindgen(cfg = "feature = \"unstable\"")]
-pub fn sample_get_source_sn(s: &Sample) -> u32 {
-    s.source_info().map(|si| si.source_sn()).unwrap_or(0)
+/// Decompose a sample into its [`SampleStruct`] value form.
+#[prebindgen]
+pub fn sample_to_struct(s: &Sample) -> SampleStruct {
+    s.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{keyexpr_new_try_from, zbytes_new_from_slice};
+
+    fn put_sample() -> Sample {
+        let ke = keyexpr_new_try_from("test/ke".to_string()).unwrap();
+        sample_new_put(
+            ke,
+            zbytes_new_from_slice(b"hello"),
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(true),
+            #[cfg(feature = "unstable")]
+            None,
+        )
+    }
+
+    #[test]
+    fn sample_to_struct_mirrors_accessors() {
+        let s = put_sample();
+        let st = sample_to_struct(&s);
+        assert_eq!(st.express, sample_get_express(&s));
+        assert!(st.express);
+    }
 }
