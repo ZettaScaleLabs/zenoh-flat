@@ -150,7 +150,7 @@ pub use crate::base::publisher::{publisher_get_id, publisher_get_reliability};
 #[cfg(feature = "unstable")]
 pub use crate::base::qos::reliability::Reliability;
 #[cfg(feature = "unstable")]
-pub use crate::base::query::querier::querier_get_id;
+pub use crate::base::query::querier::{querier_get_accept_replies, querier_get_id};
 #[cfg(feature = "unstable")]
 pub use crate::base::query::queryable::queryable_get_id;
 #[cfg(feature = "unstable")]
@@ -226,7 +226,10 @@ pub use crate::base::{
             parameters_contains_key, parameters_extend, parameters_get, parameters_insert,
             parameters_is_well_formed, parameters_remove, parameters_values,
         },
-        querier::{querier_get, querier_get_key_expr, querier_undeclare},
+        querier::{
+            querier_get, querier_get_congestion_control, querier_get_key_expr,
+            querier_get_priority, querier_undeclare,
+        },
         query_get_attachment, query_get_encoding, query_get_key_expr, query_get_parameters,
         query_get_payload, query_reply_delete, query_reply_error, query_reply_sample,
         query_reply_success,
