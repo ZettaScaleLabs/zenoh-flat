@@ -19,7 +19,7 @@ bindings for other languages (C via `lang::Cbindgen`, Kotlin/JNI via
 
 ## Conventions
 
-- **Naming follows zenoh's Rust names, not zenoh-c.** Functions are
+- **Naming follows zenoh's Rust names.** Functions are
   `<type>_<verb>` (`session_declare_publisher`, `publisher_undeclare`,
   `keyexpr_intersects`); type aliases keep zenoh's own identifier
   (`ZBytes`, `ZenohId`).
