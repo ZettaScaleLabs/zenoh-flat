@@ -18,8 +18,7 @@
 
 use zenoh_flat::{
     config_insert_json5, config_new_default, open, session_close, session_get_peers_zid,
-    session_get_routers_zid, session_get_zid, session_is_closed, zenoh_id_to_le_bytes,
-    zenoh_id_to_string,
+    session_get_routers_zid, session_get_zid, session_is_closed, zenoh_id_to_string,
 };
 
 /// A fully isolated session: scouting (multicast + gossip) disabled and no
@@ -51,24 +50,26 @@ fn open_close_is_idempotent() {
     assert!(session_is_closed(&session));
 }
 
-/// The session's own zid renders to a non-empty string and a 16-byte
-/// little-endian id (`uhlc::ID::MAX_SIZE`), and the two representations agree.
+/// A real session hands out a real zid: it renders without error to a non-empty
+/// string, and its bytes are not all zero (which is the one byte pattern that is
+/// not an identifier).
+///
+/// The width needs no assertion — it is fixed by the type. That the two forms
+/// agree with zenoh is checked in `base::config::zenoh_id`'s unit tests, against
+/// zenoh's own rendering; reasserting it here would mean deriving the expected
+/// string from the bytes, i.e. reimplementing that rendering.
 #[test]
 fn zid_has_string_and_byte_form() {
     let session = isolated_session();
 
     let zid = session_get_zid(&session);
-    let s = zenoh_id_to_string(&zid);
-    let bytes = zenoh_id_to_le_bytes(&zid);
+    let s = zenoh_id_to_string(&zid).expect("a session zid renders");
 
     assert!(!s.is_empty(), "zid string form must not be empty");
-    assert_eq!(
-        bytes.len(),
-        16,
-        "zid byte form is fixed 16-byte little-endian"
-    );
+    // Read straight off the value: a node id is a bounded blob, not a resource
+    // behind an accessor.
     assert!(
-        bytes.iter().any(|&b| b != 0),
+        zid.bytes.iter().any(|&b| b != 0),
         "a real zid is not all zeroes"
     );
 }
