@@ -209,7 +209,7 @@ pub use crate::base::{
         },
         zbytes::{
             zbytes_is_empty, zbytes_len, zbytes_new_clone, zbytes_new_from_slice,
-            zbytes_new_from_vec, zbytes_to_bytes,
+            zbytes_new_from_vec, zbytes_to_bytes, zbytes_try_to_string,
         },
     },
     config::{

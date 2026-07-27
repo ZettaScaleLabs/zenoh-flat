@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use prebindgen_proc_macro::prebindgen;
 
-use crate::ZBytes;
+use crate::{Error, ZBytes};
 
 /// Return the number of bytes in the payload.
 ///
@@ -23,6 +23,17 @@ pub fn zbytes_is_empty(z: &ZBytes) -> bool {
 #[prebindgen]
 pub fn zbytes_to_bytes(z: &ZBytes) -> Cow<'_, [u8]> {
     z.to_bytes()
+}
+
+/// Return the payload decoded as UTF-8 text.
+///
+/// Fails if the payload is not valid UTF-8. Decoding is base's, so a payload
+/// that zenoh considers text decodes exactly as zenoh decodes it — a caller
+/// must not re-implement the check, since a skipped one turns invalid input
+/// into silent corruption rather than an error.
+#[prebindgen]
+pub fn zbytes_try_to_string(z: &ZBytes) -> Result<String, Error> {
+    Ok(z.try_to_string()?.into_owned())
 }
 
 /// Create a payload from a sequence of bytes.
