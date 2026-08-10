@@ -20,10 +20,12 @@ on:
         type: boolean
         description: Live-run
         required: false
+      # Required even for a dry run: the fallback in `create-release-branch` is
+      # `git describe`, which this repository cannot answer while it has no tags.
       version:
         type: string
         description: Release number
-        required: false
+        required: true
       zenoh-version:
         type: string
         description: Release number of Zenoh
@@ -34,13 +36,25 @@ on:
         required: false
 
 jobs:
-  tag:
-    name: Branch, Bump & tag
+  prepare:
+    name: Branch & bump
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.create-release-branch.outputs.version }}
       branch: ${{ steps.create-release-branch.outputs.branch }}
+      sha: ${{ steps.release-commit.outputs.sha }}
     steps:
+      # A live release pins its dependencies to a zenoh release branch; without
+      # `zenoh-version` the bump is skipped and the release would be cut against
+      # the moving zenoh `main`. Read through the environment, so an input can
+      # never be spliced into this shell.
+      - name: Require a zenoh version for a live run
+        if: ${{ inputs.live-run }}
+        env:
+          ZENOH_VERSION: ${{ inputs.zenoh-version }}
+        run: |
+          : "${ZENOH_VERSION:?a live run must pin the zenoh version to release against}"
+
       - id: create-release-branch
         uses: eclipse-zenoh/ci/create-release-branch@main
         with:
@@ -50,15 +64,19 @@ jobs:
           branch: ${{ inputs.branch }}
           github-token: ${{ secrets.BOT_TOKEN_WORKFLOW }}
 
+      # Checked out with the bot token deliberately, as zenoh-c does: the token
+      # `actions/checkout` persists is the one the bump pushes with, and a push
+      # made with the job's own `GITHUB_TOKEN` starts no workflow run, so the
+      # release commit would land on the branch with no CI attached to it.
       - name: Checkout this repository
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.create-release-branch.outputs.branch }}
+          token: ${{ secrets.BOT_TOKEN_WORKFLOW }}
 
-      - name: Bump and tag project
-        run: bash ci/scripts/bump-and-tag.bash
+      - name: Bump the release branch
+        run: bash ci/scripts/bump.bash
         env:
-          LIVE_RUN: ${{ inputs.live-run || false }}
           VERSION: ${{ steps.create-release-branch.outputs.version }}
           BUMP_DEPS_VERSION: ${{ inputs.zenoh-version }}
           BUMP_DEPS_PATTERN: ${{ inputs.zenoh-version && 'zenoh.*' || '' }}
@@ -66,14 +84,59 @@ jobs:
           GIT_USER_NAME: eclipse-zenoh-bot
           GIT_USER_EMAIL: eclipse-zenoh-bot@users.noreply.github.com
 
+      # The release candidate's identity. Everything downstream refers to this
+      # commit rather than to the branch, which could move under them.
+      - id: release-commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  # The release is validated by the same CI the repository gates merges on —
+  # lints, doc build, and tests under default, no-default and `unstable`, on all
+  # three platforms — rather than by a second, thinner definition of "valid".
+  validate:
+    name: Validate the release commit
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+
+  # Tagging is the last thing before publication, and deliberately not part of
+  # `prepare`: a tag that exists means the commit under it passed validation.
+  # Tagging first would leave a public tag on a candidate that failed — and,
+  # since tags here are never force-moved, the retry would then collide with it
+  # and need a manual deletion to recover.
+  tag:
+    name: Tag the validated commit
+    needs: [prepare, validate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the release commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          token: ${{ secrets.BOT_TOKEN_WORKFLOW }}
+
+      # No `--force` on either command: a version that already carries a tag
+      # fails here instead of having its tag retargeted. A dry run rehearses
+      # every other step and skips this one — `publish-crates-github` needs no
+      # tag unless it is creating a release.
+      - name: Tag the release commit
+        if: ${{ inputs.live-run }}
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          git -c user.name=eclipse-zenoh-bot \
+              -c user.email=eclipse-zenoh-bot@users.noreply.github.com \
+              tag "$VERSION" -m "v$VERSION"
+          git push origin "$VERSION"
+
   publish-github:
-    needs: tag
+    needs: [prepare, tag]
     runs-on: ubuntu-latest
     steps:
       - uses: eclipse-zenoh/ci/publish-crates-github@main
         with:
           repo: ${{ github.repository }}
           live-run: ${{ inputs.live-run || false }}
-          version: ${{ needs.tag.outputs.version }}
-          branch: ${{ needs.tag.outputs.branch }}
+          version: ${{ needs.prepare.outputs.version }}
+          branch: ${{ needs.prepare.outputs.branch }}
           github-token: ${{ secrets.BOT_TOKEN_WORKFLOW }}

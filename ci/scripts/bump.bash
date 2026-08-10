@@ -2,7 +2,6 @@
 
 set -xeo pipefail
 
-readonly live_run=${LIVE_RUN:-false}
 # Release number
 readonly version=${VERSION:?input VERSION is required}
 # Dependencies' pattern
@@ -93,10 +92,9 @@ if [[ "$bump_deps_pattern" != '' ]]; then
   fi
 fi
 
-if [[ ${live_run} ]]; then
-  git tag --force "$version" -m "v$version"
-fi
 git log -10
-git show-ref --tags
 git push origin
-git push --force origin "$version"
+
+# This script does not tag. The release workflow tags the commit it leaves here
+# only once that commit has passed validation, so a release tag never points at
+# something that was not checked.
